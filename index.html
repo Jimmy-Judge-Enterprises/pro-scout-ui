@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Pro-Scout reporting interface for team state and player evaluations." />
+  <title>Pro-Scout</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div>
+        <div class="eyebrow">PRO-SCOUT</div>
+        <h1>Scouting Console</h1>
+      </div>
+      <nav class="entity-toggle" aria-label="Scout entity">
+        <button class="toggle-button is-active" data-view="teams" aria-pressed="true">Teams</button>
+        <button class="toggle-button" data-view="players" aria-pressed="false">Players</button>
+      </nav>
+      <div class="season">2026</div>
+    </header>
+
+    <main class="workspace">
+      <aside class="sidebar">
+        <div class="sidebar-heading">
+          <span id="list-title">Teams</span>
+          <span id="entity-count" class="count-badge">0</span>
+        </div>
+        <label class="search-label" for="entity-search">Search</label>
+        <input id="entity-search" class="search-input" type="search" placeholder="Search teams" autocomplete="off" />
+        <div id="entity-list" class="entity-list" role="list"></div>
+      </aside>
+
+      <section class="detail-panel" aria-live="polite">
+        <div id="detail-empty" class="empty-state">
+          <div class="empty-icon">PS</div>
+          <h2>No record selected</h2>
+          <p>Choose a team or player from the manifest.</p>
+        </div>
+        <div id="detail-content" hidden></div>
+      </section>
+    </main>
+  </div>
+
+  <script type="module" src="./src/app.js"></script>
+</body>
+</html>
