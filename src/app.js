@@ -13,6 +13,14 @@ const els = {
   empty: document.querySelector("#detail-empty"),
   content: document.querySelector("#detail-content"),
   toggleButtons: [...document.querySelectorAll("[data-view]")],
+  sidebar: document.querySelector(".sidebar"),
+  capture: document.querySelector("#capture-panel"),
+  captureForm: document.querySelector("#capture-panel"),
+  captureName: document.querySelector("#capture-name"),
+  captureTeam: document.querySelector("#capture-team"),
+  capturePosition: document.querySelector("#capture-position"),
+  captureNotes: document.querySelector("#capture-notes"),
+  captureHint: document.querySelector("#capture-hint"),
 };
 
 async function loadManifests() {
@@ -43,6 +51,25 @@ function entityCode(item) {
   return state.view === "teams" ? item.team_id : (item.position ?? item.team_id ?? "");
 }
 
+// Freshness is derived at render time, never baked into the manifest: the
+// manifest carries captured_at as fact, and a record does not become stale
+// because a build ran. A record with no capture date is "unavailable", not
+// assumed fresh -- missing evidence stays missing.
+const DAY = 86400000;
+function freshness(capturedAt) {
+  if (!capturedAt) return "unavailable";
+  const at = Date.parse(capturedAt);
+  if (Number.isNaN(at)) return "unavailable";
+  const age = (Date.now() - at) / DAY;
+  if (age <= 14) return "recent";
+  if (age <= 60) return "stale";
+  return "unavailable";
+}
+
+function freshnessLabel(capturedAt) {
+  return { recent: "Recent", stale: "Stale", unavailable: "No capture date" }[freshness(capturedAt)];
+}
+
 function renderList() {
   const entities = getEntities();
   els.listTitle.textContent = state.view === "teams" ? "Teams" : "Players";
@@ -56,7 +83,7 @@ function renderList() {
     button.className = `entity-row${state.selectedId === id ? " is-selected" : ""}`;
     button.type = "button";
     button.innerHTML = `
-      <span class="status-dot ${item.status ?? ""}" aria-hidden="true"></span>
+      <span class="status-dot ${freshness(item.captured_at)}" aria-hidden="true"></span>
       <span>${escapeHtml(entityLabel(item))}</span>
       <span class="entity-code">${escapeHtml(entityCode(item))}</span>
     `;
@@ -87,19 +114,25 @@ function renderDetail(item) {
           <h2 class="record-title">${escapeHtml(entityLabel(item))}</h2>
           <p class="record-subtitle">${escapeHtml(item.team_id ?? "")} · ${escapeHtml(String(item.season ?? ""))}</p>
         </div>
-        <div class="status-pill">${escapeHtml(item.status ?? "unknown")}</div>
+        <div class="status-pill">${escapeHtml(item.capture_status ?? "unknown")}</div>
       </header>
       <div class="section-grid">
         ${card("Record", {
           "Team ID": item.team_id,
+          "Conference": [item.conference, item.division].filter(Boolean).join(" "),
           "Season": item.season,
           "Contract": item.contract_version,
           "Snapshot": item.snapshot_id,
         })}
+        ${card("Staff", {
+          "Head coach": item.head_coach,
+          "Offensive coordinator": item.offensive_coordinator,
+        })}
         ${card("Provenance", {
-          "Captured": item.captured_at,
-          "Effective": item.effective_at,
-          "Source status": item.status,
+          "Capture status": item.capture_status,
+          "Captured": item.captured_at ?? "not recorded upstream",
+          "Freshness": freshnessLabel(item.captured_at),
+          "Source": item.source_provider,
           "Record URI": item.record_uri,
         })}
       </div>
@@ -112,20 +145,21 @@ function renderDetail(item) {
           <h2 class="record-title">${escapeHtml(entityLabel(item))}</h2>
           <p class="record-subtitle">${escapeHtml(item.position ?? "")} · ${escapeHtml(item.team_id ?? "")} · ${escapeHtml(item.gsis_id ?? "")}</p>
         </div>
-        <div class="status-pill">${escapeHtml(item.status ?? "available")}</div>
+        <div class="status-pill">${escapeHtml(item.capture_status ?? "unknown")}</div>
       </header>
       <div class="section-grid">
         ${card("Identity", {
           "GSIS ID": item.gsis_id,
           "Position": item.position,
           "NFL team": item.team_id,
-          "Record URI": item.record_uri,
+          "Name source": item.name_resolved ? "resolved by GSIS from nflverse" : "as captured",
         })}
-        ${card("Evaluation Inputs", {
-          "Facts snapshot": item.facts_snapshot_id,
-          "Team snapshot": item.team_snapshot_id,
-          "Captured": item.captured_at,
+        ${card("Capture", {
+          "Capture status": item.capture_status,
+          "Captured": item.captured_at ?? "not recorded upstream",
+          "Freshness": freshnessLabel(item.captured_at),
           "Contract": item.contract_version,
+          "Record URI": item.record_uri,
         })}
       </div>
     `;
@@ -150,10 +184,49 @@ function setView(view) {
     button.classList.toggle("is-active", active);
     button.setAttribute("aria-pressed", String(active));
   });
+
+  const capturing = view === "capture";
+  els.sidebar.hidden = capturing;
+  els.capture.hidden = !capturing;
   els.content.hidden = true;
-  els.empty.hidden = false;
-  renderList();
+  els.empty.hidden = capturing;
+  if (!capturing) renderList();
 }
+
+// ------------------------------------------------------------- intake ---
+// The public page never holds a token and never calls an API. It builds a
+// prefilled GitHub issue URL against the private repo; GitHub authenticates
+// the submitter with their own session and performs the write.
+const INTAKE_REPO = "Jimmy-Judge-Enterprises/pro-scout";
+const INTAKE_TEMPLATE = "player-intake.yml";
+
+function intakeUrl({ name, team, position, notes }) {
+  const params = new URLSearchParams({ template: INTAKE_TEMPLATE, title: `[intake] ${name}` });
+  params.set("player_name", name);
+  if (team) params.set("team_hint", team);
+  if (position) params.set("position_hint", position);
+  if (notes) params.set("notes", notes);
+  return `https://github.com/${INTAKE_REPO}/issues/new?${params}`;
+}
+
+els.captureForm?.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const name = els.captureName.value.trim();
+  if (!name) {
+    els.captureName.focus();
+    return;
+  }
+  const url = intakeUrl({
+    name,
+    team: els.captureTeam.value.trim(),
+    position: els.capturePosition.value.trim(),
+    notes: els.captureNotes.value.trim(),
+  });
+  const opened = window.open(url, "_blank", "noopener");
+  els.captureHint.textContent = opened
+    ? "Intake request opened on GitHub. Submit it there to queue the ingest."
+    : "Popup blocked. Open the request manually: " + url;
+});
 
 function escapeHtml(value = "") {
   return String(value).replace(/[&<>'"]/g, (char) => ({

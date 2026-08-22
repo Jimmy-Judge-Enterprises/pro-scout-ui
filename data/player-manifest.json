@@ -1,4 +1,151 @@
 {
   "schema_version": "pro-scout-ui.player-manifest.v1",
-  "players": []
+  "generated_by": "pro-scout/scripts/build-ui-manifests.mjs",
+  "source_repo": "Jimmy-Judge-Enterprises/pro-scout",
+  "count": 13,
+  "players": [
+    {
+      "gsis_id": "00-0035676",
+      "name": "A.J. Brown",
+      "position": "WR",
+      "team_id": "NE",
+      "capture_status": "partial_capture",
+      "captured_at": "2026-08-14",
+      "contract_version": "2.0",
+      "record_uri": "pro-scout:players/00-0035676.json",
+      "name_resolved": true
+    },
+    {
+      "gsis_id": "00-0035710",
+      "name": "Daniel Jones",
+      "position": "QB",
+      "team_id": "IND",
+      "capture_status": "complete",
+      "captured_at": "2026-08-14",
+      "contract_version": "2.0",
+      "record_uri": "pro-scout:players/00-0035710.json",
+      "name_resolved": false
+    },
+    {
+      "gsis_id": "00-0036223",
+      "name": "Jonathan Taylor",
+      "position": "RB",
+      "team_id": "IND",
+      "capture_status": "partial_capture",
+      "captured_at": "2026-08-14",
+      "contract_version": "2.0",
+      "record_uri": "pro-scout:players/00-0036223.json",
+      "name_resolved": false
+    },
+    {
+      "gsis_id": "00-0036322",
+      "name": "Justin Jefferson",
+      "position": "WR",
+      "team_id": "MIN",
+      "capture_status": "partial_capture",
+      "captured_at": "2026-08-14",
+      "contract_version": "2.0",
+      "record_uri": "pro-scout:players/00-0036322.json",
+      "name_resolved": true
+    },
+    {
+      "gsis_id": "00-0036389",
+      "name": "Jalen Hurts",
+      "position": "QB",
+      "team_id": "PHI",
+      "capture_status": "partial_capture",
+      "captured_at": "2026-08-14",
+      "contract_version": "2.0",
+      "record_uri": "pro-scout:players/00-0036389.json",
+      "name_resolved": false
+    },
+    {
+      "gsis_id": "00-0036900",
+      "name": "Ja'Marr Chase",
+      "position": "WR",
+      "team_id": "CIN",
+      "capture_status": "partial_capture",
+      "captured_at": "2026-08-14",
+      "contract_version": "2.0",
+      "record_uri": "pro-scout:players/00-0036900.json",
+      "name_resolved": true
+    },
+    {
+      "gsis_id": "00-0037816",
+      "name": "Romeo Doubs",
+      "position": "WR",
+      "team_id": "NE",
+      "capture_status": "complete",
+      "captured_at": "2026-08-14",
+      "contract_version": "2.0",
+      "record_uri": "pro-scout:players/00-0037816.json",
+      "name_resolved": false
+    },
+    {
+      "gsis_id": "00-0038134",
+      "name": "Kenneth Walker III",
+      "position": "RB",
+      "team_id": "KC",
+      "capture_status": "partial_capture",
+      "captured_at": "2026-08-14",
+      "contract_version": "2.0",
+      "record_uri": "pro-scout:players/00-0038134.json",
+      "name_resolved": true
+    },
+    {
+      "gsis_id": "00-0038597",
+      "name": "Chase Brown",
+      "position": "RB",
+      "team_id": "CIN",
+      "capture_status": "unknown",
+      "captured_at": "2026-08-14",
+      "contract_version": "2.0",
+      "record_uri": "pro-scout:players/00-0038597.json",
+      "name_resolved": false
+    },
+    {
+      "gsis_id": "00-0038997",
+      "name": "Josh Downs",
+      "position": "WR",
+      "team_id": "IND",
+      "capture_status": "complete",
+      "captured_at": "2026-08-14",
+      "contract_version": "2.0",
+      "record_uri": "pro-scout:players/00-0038997.json",
+      "name_resolved": false
+    },
+    {
+      "gsis_id": "00-0039344",
+      "name": "Jonathon Brooks",
+      "position": "RB",
+      "team_id": "CAR",
+      "capture_status": "partial_capture",
+      "captured_at": "2026-08-14",
+      "contract_version": "2.0",
+      "record_uri": "pro-scout:players/00-0039344.json",
+      "name_resolved": false
+    },
+    {
+      "gsis_id": "00-0040715",
+      "name": "Cam Skattebo",
+      "position": "RB",
+      "team_id": "NYG",
+      "capture_status": "partial_capture",
+      "captured_at": "2026-08-14",
+      "contract_version": "2.0",
+      "record_uri": "pro-scout:players/00-0040715.json",
+      "name_resolved": false
+    },
+    {
+      "gsis_id": "00-0041496",
+      "name": "Jonah Coleman",
+      "position": "RB",
+      "team_id": "DEN",
+      "capture_status": "partial_capture",
+      "captured_at": "2026-08-14",
+      "contract_version": "2.0",
+      "record_uri": "pro-scout:players/00-0041496.json",
+      "name_resolved": false
+    }
+  ]
 }
