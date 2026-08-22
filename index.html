@@ -17,6 +17,7 @@
       <nav class="entity-toggle" aria-label="Scout entity">
         <button class="toggle-button is-active" data-view="teams" aria-pressed="true">Teams</button>
         <button class="toggle-button" data-view="players" aria-pressed="false">Players</button>
+        <button class="toggle-button" data-view="capture" aria-pressed="false">Capture</button>
       </nav>
       <div class="season">2026</div>
     </header>
@@ -39,6 +40,43 @@
           <p>Choose a team or player from the manifest.</p>
         </div>
         <div id="detail-content" hidden></div>
+
+        <!-- Intake. This page holds no credentials and calls no API: submitting
+             opens a prefilled issue form on the private pro-scout repo, where
+             GitHub authenticates the submitter with their own session. -->
+        <form id="capture-panel" class="capture-panel" hidden>
+          <div class="record-kicker">PLAYER INTAKE</div>
+          <h2 class="record-title">Request a player ingest</h2>
+          <p class="capture-lede">
+            Names are resolved to a canonical <abbr title="nflverse player identity key">GSIS id</abbr>
+            upstream before any fact is recorded. Hints are optional and are used only to
+            discriminate between candidates &mdash; they never establish identity.
+          </p>
+
+          <label class="capture-label" for="capture-name">Player name <span aria-hidden="true">*</span></label>
+          <input id="capture-name" class="search-input" type="text" required autocomplete="off"
+                 placeholder="e.g. Puka Nacua" />
+
+          <div class="capture-row">
+            <div>
+              <label class="capture-label" for="capture-team">Team hint</label>
+              <input id="capture-team" class="search-input" type="text" autocomplete="off" placeholder="e.g. LAR" />
+            </div>
+            <div>
+              <label class="capture-label" for="capture-position">Position hint</label>
+              <input id="capture-position" class="search-input" type="text" autocomplete="off" placeholder="e.g. WR" />
+            </div>
+          </div>
+
+          <label class="capture-label" for="capture-notes">Notes</label>
+          <textarea id="capture-notes" class="search-input capture-notes" rows="3"
+                    placeholder="Why this player, and anything that helps disambiguate."></textarea>
+
+          <div class="capture-actions">
+            <button type="submit" class="toggle-button is-active">Open intake request</button>
+            <span id="capture-hint" class="capture-hint">Opens a prefilled issue on the private pro-scout repo.</span>
+          </div>
+        </form>
       </section>
     </main>
   </div>

@@ -69,3 +69,15 @@ h1 { margin: 2px 0 0; font-size: 22px; }
   .detail-panel { padding: 22px; }
   .section-grid { grid-template-columns: 1fr; }
 }
+
+/* Player intake */
+.capture-panel { max-width: 640px; }
+.capture-panel[hidden] { display: none; }
+.capture-lede { color: #8297b0; font-size: 13px; line-height: 1.6; margin: 10px 0 22px; }
+.capture-lede abbr { border-bottom: 1px dotted #4d6a8f; text-decoration: none; cursor: help; }
+.capture-label { display: block; margin: 16px 0 6px; color: #738aa5; font-size: 12px; letter-spacing: .04em; text-transform: uppercase; }
+.capture-row { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 16px; }
+.capture-notes { min-height: 76px; resize: vertical; font: inherit; }
+.capture-actions { display: flex; align-items: center; gap: 14px; margin-top: 24px; flex-wrap: wrap; }
+.capture-actions button { cursor: pointer; }
+.capture-hint { color: #738aa5; font-size: 12px; }
