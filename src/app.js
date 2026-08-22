@@ -1,3 +1,6 @@
+import { escapeHtml } from "./escape.js";
+import { initIntake } from "./intake.js";
+
 const state = {
   view: "teams",
   selectedId: null,
@@ -14,7 +17,9 @@ const els = {
   content: document.querySelector("#detail-content"),
   toggleButtons: [...document.querySelectorAll("[data-view]")],
   sidebar: document.querySelector(".sidebar"),
+  workspace: document.querySelector(".workspace"),
   capture: document.querySelector("#capture-panel"),
+  intake: document.querySelector("#intake-panel"),
   captureForm: document.querySelector("#capture-panel"),
   captureName: document.querySelector("#capture-name"),
   captureTeam: document.querySelector("#capture-team"),
@@ -185,12 +190,16 @@ function setView(view) {
     button.setAttribute("aria-pressed", String(active));
   });
 
-  const capturing = view === "capture";
-  els.sidebar.hidden = capturing;
-  els.capture.hidden = !capturing;
+  // Teams and Players browse the manifest; Capture and Intake replace the
+  // browser entirely, so the sidebar and its empty state go with it.
+  const browsing = view === "teams" || view === "players";
+  els.sidebar.hidden = !browsing;
+  els.workspace.classList.toggle("is-solo", !browsing);
+  els.capture.hidden = view !== "capture";
+  els.intake.hidden = view !== "intake";
   els.content.hidden = true;
-  els.empty.hidden = capturing;
-  if (!capturing) renderList();
+  els.empty.hidden = !browsing;
+  if (browsing) renderList();
 }
 
 // ------------------------------------------------------------- intake ---
@@ -228,12 +237,6 @@ els.captureForm?.addEventListener("submit", (event) => {
     : "Popup blocked. Open the request manually: " + url;
 });
 
-function escapeHtml(value = "") {
-  return String(value).replace(/[&<>'"]/g, (char) => ({
-    "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;",
-  })[char]);
-}
-
 els.toggleButtons.forEach((button) => button.addEventListener("click", () => setView(button.dataset.view)));
 els.search.addEventListener("input", (event) => {
   state.query = event.target.value;
@@ -242,4 +245,11 @@ els.search.addEventListener("input", (event) => {
 
 loadManifests()
   .catch((error) => console.error("Manifest load failed", error))
-  .finally(() => setView("teams"));
+  .finally(() => {
+    // The canvas resolves names against the same manifests the browser lists,
+    // so it is wired only once they have settled. If the load failed the index
+    // is empty and every name becomes an upstream resolution request, which is
+    // the correct answer with no index to check against.
+    initIntake(state.manifests);
+    setView("teams");
+  });

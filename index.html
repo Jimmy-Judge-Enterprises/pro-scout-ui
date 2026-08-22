@@ -17,6 +17,7 @@
       <nav class="entity-toggle" aria-label="Scout entity">
         <button class="toggle-button is-active" data-view="teams" aria-pressed="true">Teams</button>
         <button class="toggle-button" data-view="players" aria-pressed="false">Players</button>
+        <button class="toggle-button" data-view="intake" aria-pressed="false">Intake</button>
         <button class="toggle-button" data-view="capture" aria-pressed="false">Capture</button>
       </nav>
       <div class="season">2026</div>
@@ -77,6 +78,186 @@
             <span id="capture-hint" class="capture-hint">Opens a prefilled issue on the private pro-scout repo.</span>
           </div>
         </form>
+
+        <!-- Intake canvas. Text, tables, transcripts and saved pages are read
+             here in the browser; images, video and URLs are staged as sources
+             for the upstream pipeline, where OCR, transcription and fetching
+             actually run. Identity is never minted locally: a name either
+             matches the manifest index or leaves as a resolution request. -->
+        <div id="intake-panel" class="intake-panel" hidden>
+          <header class="record-header">
+            <div>
+              <div class="record-kicker">Player Intake</div>
+              <h2 class="record-title">Intake canvas</h2>
+              <p class="record-subtitle">Pull names out of files, lists and transcripts, then resolve them to GSIS ids.</p>
+            </div>
+            <ol id="intake-pipeline" class="intake-pipeline" aria-label="Intake pipeline">
+              <li class="intake-stage">
+                <span class="intake-stage-n">1</span><span class="intake-stage-name">Ingest</span>
+                <span class="intake-stage-count"><span id="intake-count-sources">0</span> sources</span>
+              </li>
+              <li class="intake-stage">
+                <span class="intake-stage-n">2</span><span class="intake-stage-name">Extract</span>
+                <span class="intake-stage-count"><span id="intake-count-candidates">0</span> names</span>
+              </li>
+              <li class="intake-stage">
+                <span class="intake-stage-n">3</span><span class="intake-stage-name">Resolve</span>
+                <span class="intake-stage-count"><span id="intake-count-resolved">0</span> GSIS</span>
+              </li>
+              <li class="intake-stage">
+                <span class="intake-stage-n">4</span><span class="intake-stage-name">Contract</span>
+                <span class="intake-stage-count"><span id="intake-count-contract">0</span> records</span>
+              </li>
+            </ol>
+          </header>
+
+          <div class="intake-grid">
+            <div class="intake-rail">
+              <div class="intake-block">
+                <button type="button" class="intake-dropzone" id="intake-dropzone">
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"
+                       stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M12 15.5V4" /><path d="M8 8l4-4 4 4" />
+                    <path d="M4 14v4.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V14" />
+                  </svg>
+                  <b>Drop files here</b>
+                  <span>or click to browse &middot; you can drop anywhere on the canvas</span>
+                  <span class="intake-formats">TXT CSV TSV JSON MD HTML VTT SRT PNG JPG MP4 MOV</span>
+                </button>
+                <input type="file" id="intake-filepicker" class="intake-sr" multiple
+                       accept=".txt,.csv,.tsv,.json,.md,.htm,.html,.vtt,.srt,.png,.jpg,.jpeg,.webp,.gif,.mp4,.mov,.webm,.m4v,text/*,image/*,video/*" />
+                <p class="intake-hint">Text, tables, transcripts and saved pages are read <strong>in the browser</strong>.
+                  Images and video are staged as sources &mdash; OCR and transcription run <strong>upstream</strong>
+                  in the pro-scout pipeline, not here.</p>
+              </div>
+
+              <div class="intake-block">
+                <div class="intake-block-head"><span class="intake-block-title">Paste input</span></div>
+                <label class="intake-sr" for="intake-paste">Paste roster text, a list, or a transcript</label>
+                <div class="intake-paste-wrap">
+                  <textarea id="intake-paste" class="search-input intake-textarea"
+                            placeholder="Paste a roster table, a comma list, a depth chart, transcript text, or copied web-page content."></textarea>
+                </div>
+                <div class="intake-actions">
+                  <button type="button" class="toggle-button is-active" id="intake-extract">Extract names</button>
+                  <button type="button" class="intake-button" id="intake-clear-paste">Clear</button>
+                </div>
+              </div>
+
+              <div class="intake-block">
+                <div class="intake-block-head"><span class="intake-block-title">Web page</span></div>
+                <label class="intake-sr" for="intake-url">Page URL</label>
+                <input id="intake-url" class="search-input" type="url" inputmode="url"
+                       placeholder="https://example.com/depth-chart" />
+                <div class="intake-actions">
+                  <button type="button" class="intake-button" id="intake-stage-url">Stage for upstream fetch</button>
+                </div>
+                <p class="intake-hint">This page holds no credentials and makes no API calls, so it cannot fetch the
+                  page itself. Stage the URL for the upstream fetcher &mdash; or copy the page&rsquo;s list and paste it
+                  above to extract now.</p>
+              </div>
+
+              <div class="intake-block">
+                <div class="intake-block-head"><span class="intake-block-title">Curated defaults</span></div>
+                <div class="intake-chips" id="intake-favorites"></div>
+                <p class="intake-hint">Shortcuts derived from the player manifest.</p>
+              </div>
+
+              <div class="intake-block">
+                <div class="intake-block-head">
+                  <span class="intake-block-title">Staged sources</span>
+                  <span class="intake-source-count" id="intake-source-count">none</span>
+                </div>
+                <div class="intake-sources" id="intake-sources"></div>
+              </div>
+            </div>
+
+            <div class="intake-surface">
+              <div class="intake-tiles">
+                <div class="card intake-tile">
+                  <span class="intake-tile-label">Candidates</span>
+                  <span class="intake-tile-value" id="intake-tile-total">0</span>
+                  <span class="intake-meter"><i id="intake-meter-total"></i></span>
+                </div>
+                <div class="card intake-tile is-resolved">
+                  <span class="intake-tile-label">Resolved</span>
+                  <span class="intake-tile-value" id="intake-tile-resolved">0</span>
+                  <span class="intake-meter"><i id="intake-meter-resolved"></i></span>
+                </div>
+                <div class="card intake-tile is-review">
+                  <span class="intake-tile-label">Needs review</span>
+                  <span class="intake-tile-value" id="intake-tile-review">0</span>
+                  <span class="intake-meter"><i id="intake-meter-review"></i></span>
+                </div>
+                <div class="card intake-tile is-upstream">
+                  <span class="intake-tile-label">Upstream</span>
+                  <span class="intake-tile-value" id="intake-tile-pending">0</span>
+                  <span class="intake-meter"><i id="intake-meter-pending"></i></span>
+                </div>
+              </div>
+
+              <section class="card intake-card">
+                <div class="intake-card-head">
+                  <div>
+                    <h3 class="intake-card-title">Extraction review</h3>
+                    <p class="intake-card-sub">heuristic name scan &middot; nothing is committed until it carries a GSIS id</p>
+                  </div>
+                  <div class="intake-chips" id="intake-filters">
+                    <button type="button" class="intake-chip is-on" data-filter="all">All<span class="intake-n" id="intake-filter-all">0</span></button>
+                    <button type="button" class="intake-chip" data-filter="resolved">Resolved<span class="intake-n" id="intake-filter-resolved">0</span></button>
+                    <button type="button" class="intake-chip" data-filter="review">Review<span class="intake-n" id="intake-filter-review">0</span></button>
+                    <button type="button" class="intake-chip" data-filter="pending">Upstream<span class="intake-n" id="intake-filter-pending">0</span></button>
+                    <button type="button" class="intake-chip is-destructive" id="intake-clear-batch">Clear batch</button>
+                  </div>
+                </div>
+                <div class="intake-table-wrap">
+                  <table id="intake-table" class="intake-table" hidden>
+                    <thead>
+                      <tr>
+                        <th scope="col">Name as captured</th>
+                        <th scope="col">GSIS identity</th>
+                        <th scope="col">Pos</th>
+                        <th scope="col">Team</th>
+                        <th scope="col">Resolution</th>
+                        <th scope="col">Source</th>
+                        <th scope="col"><span class="intake-sr">Actions</span></th>
+                      </tr>
+                    </thead>
+                    <tbody id="intake-tbody"></tbody>
+                  </table>
+                </div>
+                <div class="intake-empty" id="intake-empty">
+                  <b>No candidates yet</b>
+                  <p>Drop a file, paste a list, or load a curated default. Extracted names land here for review before
+                    anything is written to a record.</p>
+                </div>
+              </section>
+
+              <section class="card intake-card">
+                <div class="intake-card-head">
+                  <div>
+                    <h3 class="intake-card-title">Contract payload</h3>
+                    <p class="intake-card-sub">pro-scout-ui.intake-batch.v1 &middot; Gameplan contract 2.0</p>
+                  </div>
+                  <div class="intake-actions">
+                    <button type="button" class="intake-button" id="intake-copy">Copy JSON</button>
+                    <button type="button" class="toggle-button is-active" id="intake-save">Download .json</button>
+                  </div>
+                </div>
+                <pre class="intake-payload" id="intake-payload">{}</pre>
+                <p class="intake-payload-note" id="intake-payload-note"></p>
+              </section>
+            </div>
+          </div>
+
+          <div class="intake-veil" id="intake-veil" aria-hidden="true">
+            <div class="intake-veil-inner">
+              <b>Release to ingest</b>
+              <span>Text and transcripts are read here &middot; images and video are staged for upstream</span>
+            </div>
+          </div>
+          <div class="intake-sr" id="intake-live" aria-live="polite"></div>
+        </div>
       </section>
     </main>
   </div>
