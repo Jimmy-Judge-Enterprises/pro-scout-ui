@@ -63,7 +63,10 @@ const STOP = new Set(
    "traded return returns expects expect said says added per via with from after before will " +
    "has had was were are that this then now but so out over under about into during today " +
    "monday tuesday wednesday thursday friday saturday sunday january february march april may " +
-   "june july august september october november december offense defense special").split(" ")
+   "june july august september october november december offense defense special " +
+   // Roster-status vocabulary: these describe a player rather than name one.
+   "current former veteran rookie free agent reserve waived released activated healthy " +
+   "suspended limited retired undrafted").split(" ")
 );
 
 // Abbreviations the manifest does not carry. Providers disagree about a
@@ -108,9 +111,13 @@ function buildIndex({ players = [], teams = [] }) {
   for (const team of teams) {
     const words = String(team.name ?? "").split(" ").filter(Boolean);
     if (!words.length) continue;
-    for (const phrase of [words.join(" "), words.slice(0, -1).join(" "), words.at(-1)]) {
-      const key = nameKey(phrase);
-      if (key) index.phrases.add(key);
+    // Every run of words inside a club name, not just the whole phrase: a
+    // tokeniser that loses the first word must not leave "City Chiefs" behind.
+    for (let start = 0; start < words.length; start++) {
+      for (let end = start + 1; end <= words.length; end++) {
+        const key = nameKey(words.slice(start, end).join(" "));
+        if (key) index.phrases.add(key);
+      }
     }
   }
 }
@@ -142,7 +149,7 @@ function resolveName(name) {
 }
 
 // --------------------------------------------------------------- extract ---
-const tokenize = (line) => line.split(/[\s/\\\t]+/).filter(Boolean);
+const tokenize = (line) => line.split(/[\s/\\\t"\u201c\u201d:{}[\]()<>=]+/).filter(Boolean);
 const cleanToken = (token) => token.replace(/^[^A-Za-z]+/, "").replace(/[^A-Za-z.'\u2019-]+$/, "");
 
 function isNameToken(token) {
@@ -239,29 +246,67 @@ function htmlLines(text) {
   return (doc.body?.textContent ?? "").split(/\r?\n/);
 }
 
-function jsonLines(text) {
+const positionCode = (value) => {
+  const code = typeof value === "string" ? value.trim().toUpperCase() : "";
+  return POSITIONS.has(code) ? code : null;
+};
+const teamCode = (value) => (typeof value === "string" ? index.teams.get(value.trim().toUpperCase()) ?? null : null);
+
+// The team a document is about, named once in its header.
+function documentTeam(data) {
+  const team = typeof data.team === "string" ? data.team : data.team?.abbr ?? data.team?.team_id;
+  return teamCode(data.team_id) ?? teamCode(data.team_abbr) ?? teamCode(data.abbr) ?? teamCode(team);
+}
+
+// A structured source carries context a flat line cannot: the position a player
+// is filed under, the provider the file came from, the team it is about. That
+// context is worth keeping -- with one caveat the reader encodes. A position
+// comes from the section a player sits in and is about the player. A team named
+// in a document header is about the *document*, and rosters go stale: a file
+// cannot know a player has moved since it was written. So the team travels as a
+// hint marked with where it came from, and never as an observation of a player.
+function readJson(text) {
   let data;
   try {
     data = JSON.parse(text);
   } catch {
-    return text.split(/\r?\n/);
+    return null;
   }
-  const lines = [];
-  const walk = (node) => {
+  if (!data || typeof data !== "object") return null;
+
+  const fileTeam = documentTeam(data);
+  const records = [];
+  const walk = (node, section) => {
     if (!node || typeof node !== "object") return;
-    if (Array.isArray(node)) return node.forEach(walk);
-    // A record's own position and team travel with the name so line-level hint
-    // scanning still sees them.
-    for (const [key, value] of Object.entries(node)) {
-      if (typeof value === "string" && /name|player|full/i.test(key)) {
-        const extras = [node.position, node.pos, node.team, node.team_id].filter((v) => typeof v === "string");
-        lines.push([value, ...extras].join(" "));
-      }
+    if (Array.isArray(node)) {
+      for (const child of node) walk(child, section);
+      return;
     }
-    Object.values(node).forEach(walk);
+    for (const [key, value] of Object.entries(node)) {
+      if (typeof value !== "string" || !/name|player|full/i.test(key)) continue;
+      const ownTeam = teamCode(node.team_id ?? node.team ?? node.team_abbr);
+      records.push({
+        text: value,
+        hints: {
+          position: positionCode(node.position ?? node.pos) ?? section,
+          team: ownTeam ?? fileTeam,
+          teamBasis: ownTeam ? "observed" : fileTeam ? "document" : null,
+        },
+      });
+    }
+    // "positions": { "RB": [...] } -- the key is the position.
+    for (const [key, value] of Object.entries(node)) {
+      if (value && typeof value === "object") walk(value, positionCode(key) ?? section);
+    }
   };
-  walk(data);
-  return lines.length ? lines : text.split(/\r?\n/);
+  walk(data, null);
+
+  const declared = {
+    provider: typeof data.source?.provider === "string" ? data.source.provider : null,
+    capture_status: typeof data.capture_status === "string" ? data.capture_status : null,
+    observed_at: [data.source_observation_date, data.source_checked_at].find((v) => typeof v === "string") ?? null,
+  };
+  return { records, declared: Object.values(declared).some(Boolean) ? declared : null };
 }
 
 function csvLines(text) {
@@ -283,10 +328,31 @@ function csvLines(text) {
 function linesFor(text, kind) {
   const lines = kind === "html" ? htmlLines(text)
     : kind === "vtt" || kind === "srt" ? cueLines(text)
-    : kind === "json" ? jsonLines(text)
     : kind === "csv" ? csvLines(text)
     : text.split(/\r?\n/);
   return lines.map((line) => String(line).trim()).filter(Boolean);
+}
+
+// Records carry their structural context; flat lines have none and fall back to
+// whatever the line itself says. A file that claims to be JSON but will not
+// parse is still read as text rather than rejected.
+function readSource(text, kind) {
+  if (kind === "json") {
+    const parsed = readJson(text);
+    if (parsed) return parsed;
+  }
+  return { records: linesFor(text, kind).map((line) => ({ text: line, hints: null })), declared: null };
+}
+
+// What the line says wins: it is about this player, where a document header is
+// only about the file.
+function mergeHints(line, structural) {
+  if (!structural) return { position: line.position, team: line.team, teamBasis: line.team ? "observed" : null };
+  return {
+    position: line.position ?? structural.position ?? null,
+    team: line.team ?? structural.team ?? null,
+    teamBasis: line.team ? "observed" : structural.teamBasis,
+  };
 }
 
 function kindOf(file) {
@@ -335,7 +401,11 @@ function addCandidate(name, hints, source) {
     existing.occurrences += 1;
     if (source && !existing.sourceIds.includes(source.id)) existing.sourceIds.push(source.id);
     existing.hints.position ??= hints.position ?? null;
-    existing.hints.team ??= hints.team ?? null;
+    // A team seen beside the player outranks one inherited from a file header.
+    if (hints.team && (!existing.hints.team || (hints.teamBasis === "observed" && existing.hints.teamBasis === "document"))) {
+      existing.hints.team = hints.team;
+      existing.hints.teamBasis = hints.teamBasis ?? null;
+    }
     return false;
   }
 
@@ -345,7 +415,7 @@ function addCandidate(name, hints, source) {
     key,
     occurrences: 1,
     sourceIds: source ? [source.id] : [],
-    hints: { position: hints.position ?? null, team: hints.team ?? null },
+    hints: { position: hints.position ?? null, team: hints.team ?? null, teamBasis: hints.teamBasis ?? null },
     confirmed: false,
     ...resolveName(name),
   });
@@ -353,14 +423,19 @@ function addCandidate(name, hints, source) {
 }
 
 function ingestText(text, source) {
+  const { records, declared } = readSource(text, source.kind);
+  if (declared) source.declared = declared;
+
   let added = 0;
   const found = [];
-  for (const line of linesFor(text, source.kind)) {
-    const names = namesFromLine(line);
+  for (const record of records) {
+    const names = namesFromLine(record.text);
     if (!names.length) continue;
-    // Hints only bind when the line names one player; on a comma list there is
-    // no telling which name the trailing "WR MIN" belongs to.
-    const hints = names.length === 1 ? hintsFromLine(line) : { position: null, team: null };
+    // Line hints only bind when the line names one player; on a comma list there
+    // is no telling which name the trailing "WR MIN" belongs to. Structural
+    // hints are safe either way -- they came from the shape of the document.
+    const inline = names.length === 1 ? hintsFromLine(record.text) : { position: null, team: null };
+    const hints = mergeHints(inline, record.hints);
     for (const name of names) {
       if (addCandidate(name, hints, source)) added += 1;
       found.push(name);
@@ -464,11 +539,12 @@ function renderRows() {
       resolution += `<div class="intake-sub">${escapeHtml((match.capture_status ?? "unknown").replace(/_/g, " "))} \u00b7 ${escapeHtml(match.captured_at ?? "no capture date")}</div>`;
     }
 
-    const hintCell = (value, hint) => value
+    const hintCell = (value, hint, label = "hint", title = "") => value
       ? `<span class="intake-slot">${escapeHtml(value)}</span>`
       : hint
-        ? `<span class="intake-slot">${escapeHtml(hint)}</span><div class="intake-sub">hint</div>`
+        ? `<span class="intake-slot">${escapeHtml(hint)}</span><div class="intake-sub"${title ? ` title="${escapeHtml(title)}"` : ""}>${label}</div>`
         : '<span class="intake-slot">\u2014</span>';
+    const fromFile = row.hints.teamBasis === "document";
 
     return `<tr>
       <td>
@@ -478,7 +554,8 @@ function renderRows() {
       </td>
       <td><span class="intake-gsis${match ? "" : " none"}">${match ? escapeHtml(match.gsis_id) : "\u2014"}</span></td>
       <td>${hintCell(match?.position, row.hints.position)}</td>
-      <td>${hintCell(match?.team_id, row.hints.team)}</td>
+      <td>${hintCell(match?.team_id, row.hints.team, fromFile ? "file hint" : "hint",
+        fromFile ? "Taken from the file header, not from this player's row. Rosters go stale \u2014 verify before trusting it." : "")}</td>
       <td>${resolution}</td>
       <td><span class="intake-sub" title="${escapeHtml(labels.join(", "))}">${escapeHtml(sourceText)}</span></td>
       <td><button type="button" class="intake-icon" data-action="drop" data-row="${row.id}" aria-label="Remove ${escapeHtml(row.captured)}">\u2715</button></td>
@@ -498,6 +575,8 @@ function renderSources() {
     const meta = [
       formatBytes(source.bytes),
       readHere ? `${source.extracted} name${source.extracted === 1 ? "" : "s"}` : source.note,
+      source.declared?.provider,
+      source.declared?.capture_status,
     ].filter(Boolean).join(" \u00b7 ");
     const badge = source.thumb
       ? `<img class="intake-thumb" src="${escapeHtml(source.thumb)}" alt="">`
@@ -541,6 +620,7 @@ function buildPayload() {
       extraction: source.mode,
       ...(source.bytes == null ? {} : { bytes: source.bytes }),
       ...(source.note ? { deferred_reason: source.note } : {}),
+      ...(source.declared ? { declared: source.declared } : {}),
       names_extracted: source.mode === "in_browser" ? source.extracted : null,
     })),
     records: state.rows.map((row) => {
@@ -556,7 +636,11 @@ function buildPayload() {
         record_uri: match ? `pro-scout:players/${match.gsis_id}.json` : null,
         provenance: { source_ids: [...row.sourceIds], occurrences: row.occurrences },
         ...(match ? {} : {
-          hints: { team_id: row.hints.team, position: row.hints.position },
+          hints: {
+            team_id: row.hints.team,
+            team_id_basis: row.hints.teamBasis,
+            position: row.hints.position,
+          },
           status: row.status === "review" ? "awaiting_analyst_review" : "awaiting_identity_resolution",
         }),
       };
@@ -686,8 +770,10 @@ function extractFromPaste() {
   }
   const looksLikeMarkup = /<\/?(ul|ol|li|table|tr|td|div|span|p|a)\b/i.test(text);
   const looksLikeCues = text.includes("-->") && /\d\d:\d\d/.test(text);
-  const kind = looksLikeCues ? "vtt" : looksLikeMarkup ? "html" : "paste";
-  const label = kind === "html" ? "Pasted page markup" : kind === "vtt" ? "Pasted transcript" : "Pasted text";
+  // A pasted document deserves the same reader a dropped file would get.
+  const looksLikeJson = /^[[{]/.test(text.trim()) && Boolean(readJson(text));
+  const kind = looksLikeJson ? "json" : looksLikeCues ? "vtt" : looksLikeMarkup ? "html" : "paste";
+  const label = { json: "Pasted JSON", html: "Pasted page markup", vtt: "Pasted transcript" }[kind] ?? "Pasted text";
   const source = addSource({ kind, label, bytes: text.length, mode: "in_browser" });
   const { added, found } = ingestText(text, source);
 
