@@ -59,7 +59,9 @@ function depthChartFacts(row, source) {
   const order = fields.depth;
   if (!Number.isInteger(order) || order < 1 || order > 20) return null;
   const team = source?.declared?.team;
-  const group = row.hints.position;
+  // Only what the source filed the player under. A position typed into the
+  // canvas narrows a search; it is not an observation of a depth chart.
+  const group = observed(row, "position");
   if (!team || !group) return null;
   const facts = { team, position_group: group, depth_order: order };
   // Source role labels are preserved verbatim rather than normalised.
@@ -72,10 +74,17 @@ function depthChartFacts(row, source) {
 // deliberately absent unless it was observed beside the player. A team named in
 // a document header describes the document, not the player's current club, and
 // a player can leave the club whose chart still lists him.
+// Facts are what a source stated. A hint an analyst supplied to narrow a
+// search is not a fact about the player, however well founded, so it never
+// reaches this side of the boundary -- it travels on the request instead.
+const observed = (row, field) => (row.hints[`${field}Basis`] === "observed" ? row.hints[field] : null);
+
 function identityFacts(row) {
   const facts = { display_name: row.captured };
-  if (row.hints.position) facts.position = row.hints.position;
-  if (row.hints.team && row.hints.teamBasis === "observed") facts.team = row.hints.team;
+  const position = observed(row, "position");
+  const team = observed(row, "team");
+  if (position) facts.position = position;
+  if (team) facts.team = team;
   return facts;
 }
 
@@ -122,7 +131,7 @@ function buildObservation(row, source, { knownAt, batchId, schemas }) {
     fact_domain: depth ? "depth_chart" : "identity_reference",
     facts: depth ?? identityFacts(row),
     // Diagnostic only. These never establish or override the gsis_id above.
-    source_identity: { name: row.captured, ...(row.hints.position ? { position: row.hints.position } : {}) },
+    source_identity: { name: row.captured, ...(observed(row, "position") ? { position: observed(row, "position") } : {}) },
     ingestion: { batch_id: batchId, adapter_version: PRODUCER_VERSION },
   };
   if (DATE_TIME.test(declared.checked_at ?? "")) observation.retrieved_at = declared.checked_at;
@@ -150,6 +159,8 @@ function buildRequest(row, source) {
     team_hint: row.hints.team ?? null,
     team_hint_basis: row.hints.teamBasis ?? null,
     position_hint: row.hints.position ?? null,
+    position_hint_basis: row.hints.positionBasis ?? null,
+    notes: row.analyst_note ?? null,
     source_id: sourceIdFor(source),
     source_label: source?.label ?? null,
     occurrences: row.occurrences,
@@ -165,6 +176,9 @@ function buildRequest(row, source) {
       name: candidate.name,
     }));
   }
+  // A hint that contradicted the index travels with the request: the search
+  // needs to know the disagreement exists, not to have it resolved for it.
+  if (row.conflict) request.hint_conflict = row.conflict;
   return request;
 }
 

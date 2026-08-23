@@ -44,7 +44,7 @@ function row(player, overrides = {}) {
     captured: player.name,
     status: "resolved",
     match: player,
-    hints: { position: player.position, team: null, teamBasis: null },
+    hints: { position: player.position, positionBasis: "observed", team: null, teamBasis: null },
     sourceIds: ["src-1"],
     occurrences: 1,
     candidates: [],
@@ -109,8 +109,8 @@ const bundle = (rows, sources) =>
 {
   const unresolved = {
     id: "row-unresolved", captured: alpha.name, status: "pending", match: null,
-    hints: { position: "RB", team: alpha.team_id, teamBasis: "document" },
-    sourceIds: ["src-1"], occurrences: 2, candidates: [],
+    hints: { position: "RB", positionBasis: "observed", team: alpha.team_id, teamBasis: "document" },
+    sourceIds: ["src-1"], occurrences: 2, candidates: [], analyst_note: null,
   };
   const out = await bundle([unresolved], [source(complete)]);
   check("unresolved yields no observation", out.observations.length === 0);
@@ -123,11 +123,11 @@ const bundle = (rows, sources) =>
 
 // --- a document-scope team is never asserted about a player ----------------
 {
-  const inherited = row(alpha, { hints: { position: "RB", team: "KC", teamBasis: "document" } });
+  const inherited = row(alpha, { hints: { position: "RB", positionBasis: "observed", team: "KC", teamBasis: "document" } });
   const out = await bundle([inherited], [source(complete)]);
   check("inherited team stays out of identity facts", out.observations[0]?.facts.team === undefined,
     JSON.stringify(out.observations[0]?.facts));
-  const observed = row(alpha, { hints: { position: "RB", team: "KC", teamBasis: "observed" } });
+  const observed = row(alpha, { hints: { position: "RB", positionBasis: "observed", team: "KC", teamBasis: "observed" } });
   const seen = await bundle([observed], [source(complete)]);
   check("observed team is carried", seen.observations[0]?.facts.team === "KC");
 }
@@ -135,7 +135,7 @@ const bundle = (rows, sources) =>
 // --- depth becomes a depth-chart fact only when the source stated one ------
 {
   const charted = row(alpha, {
-    hints: { position: "RB", team: null, teamBasis: null },
+    hints: { position: "RB", positionBasis: "observed", team: null, teamBasis: null },
     source_fields: { depth: 1, role: "Satellite", status: null, source_basis: "playerprofiler_editorial" },
   });
   const out = await bundle([charted], [source(complete)]);
@@ -146,11 +146,50 @@ const bundle = (rows, sources) =>
   check("the chart's team is the fact's team", out.observations[0]?.facts.team === complete.team);
 
   const unstated = row(alpha, {
-    hints: { position: "RB", team: null, teamBasis: null },
+    hints: { position: "RB", positionBasis: "observed", team: null, teamBasis: null },
     source_fields: { depth: null, role: "Satellite", status: null },
   });
   const fallback = await bundle([unstated], [source(complete)]);
   check("a null depth is not a depth fact", fallback.observations[0]?.fact_domain === "identity_reference");
+}
+
+// --- a hint supplied here narrows a search; it is not an observation -------
+{
+  const hinted = row(alpha, {
+    hints: { position: "RB", positionBasis: "analyst", team: "KC", teamBasis: "analyst" },
+    analyst_note: "asked about on the call",
+  });
+  const out = await bundle([hinted], [source(complete)]);
+  const facts = out.observations[0]?.facts ?? {};
+  check("an analyst position never becomes a fact", facts.position === undefined, JSON.stringify(facts));
+  check("an analyst team never becomes a fact", facts.team === undefined, JSON.stringify(facts));
+  check("nor does it reach source_identity", out.observations[0]?.source_identity.position === undefined);
+
+  const charted = row(alpha, {
+    hints: { position: "RB", positionBasis: "analyst", team: null, teamBasis: null },
+    source_fields: { depth: 1, role: null, status: null },
+  });
+  const chart = await bundle([charted], [source(complete)]);
+  check("an analyst position cannot make a depth-chart fact",
+    chart.observations[0]?.fact_domain === "identity_reference", chart.observations[0]?.fact_domain);
+}
+
+// --- what an unresolved row carries to the search --------------------------
+{
+  const asked = {
+    id: "row-asked", captured: alpha.name, status: "pending", match: null,
+    hints: { position: "RB", positionBasis: "analyst", team: "KC", teamBasis: "analyst" },
+    sourceIds: ["src-1"], occurrences: 1, candidates: [],
+    analyst_note: "two players share this surname",
+    conflict: { name: alpha.name, gsis_id: alpha.gsis_id, clashes: ["team KC against " + alpha.team_id] },
+  };
+  const out = await bundle([asked], [source(complete)]);
+  const request = out.requests[0];
+  check("the request records both hint bases",
+    request.team_hint_basis === "analyst" && request.position_hint_basis === "analyst");
+  check("the note travels with the request", request.notes === "two players share this surname");
+  check("a contradicted hint travels rather than being resolved here",
+    request.hint_conflict?.clashes.length === 1, JSON.stringify(request.hint_conflict));
 }
 
 // --- one manifest describes one source -------------------------------------

@@ -149,6 +149,95 @@ function resolveName(name) {
   return { status: "pending", match: null, candidates: [] };
 }
 
+// ------------------------------------------------------------ clarifying ---
+// The canvas asks for a hint when it cannot tell two candidates apart, and
+// accepts one for a name it could not place at all. What it does with the
+// answer is bounded by the intake contract: a hint discriminates between
+// candidates the index already holds, it never conjures a match, and a hint
+// that contradicts the canonical index stops the row rather than overriding it.
+
+// What actually separates a retained candidate set, so the prompt can ask for
+// the detail that would settle it rather than for hints in general.
+function discriminators(candidates) {
+  const fields = [];
+  if (new Set(candidates.map((entry) => entry.position)).size > 1) fields.push("position");
+  if (new Set(candidates.map((entry) => entry.team_id)).size > 1) fields.push("team");
+  return fields;
+}
+
+const matchesHint = (value, hint) => !hint || !value || value.toUpperCase() === hint.toUpperCase();
+
+function normaliseTeam(value) {
+  const raw = String(value ?? "").trim().toUpperCase();
+  return raw ? index.teams.get(raw) ?? raw : null;
+}
+function normalisePosition(value) {
+  const raw = String(value ?? "").trim().toUpperCase();
+  return raw || null;
+}
+
+// A hint against a proven identity is checked, not applied. The index is the
+// authority; disagreement is a reason to stop and look, which is why the row
+// keeps its candidate rather than quietly adopting the hint.
+function conflictWith(match, hints) {
+  if (!match) return null;
+  const clashes = [];
+  if (hints.team && match.team_id && hints.team.toUpperCase() !== match.team_id.toUpperCase()) {
+    clashes.push(`team ${hints.team} against ${match.team_id}`);
+  }
+  if (hints.position && match.position && hints.position.toUpperCase() !== match.position.toUpperCase()) {
+    clashes.push(`position ${hints.position} against ${match.position}`);
+  }
+  return clashes.length ? { name: match.name, gsis_id: match.gsis_id, clashes } : null;
+}
+
+function applyAnalystHints(row, { team, position, note }) {
+  const nextTeam = normaliseTeam(team);
+  const nextPosition = normalisePosition(position);
+  if (nextTeam) {
+    row.hints.team = nextTeam;
+    row.hints.teamBasis = "analyst";
+  }
+  if (nextPosition) {
+    row.hints.position = nextPosition;
+    row.hints.positionBasis = "analyst";
+  }
+  row.analyst_note = String(note ?? "").trim() || null;
+  row.conflict = null;
+
+  const held = row.match ?? null;
+  const clash = conflictWith(held, row.hints);
+  if (clash) {
+    // Stop, do not override: the identity goes back into question and the
+    // canonical candidate stays on the row for the analyst to weigh.
+    row.conflict = clash;
+    row.status = "review";
+    row.match = null;
+    row.confirmed = false;
+    row.candidates = held ? [held] : row.candidates;
+    return `The hint disagrees with the canonical index for ${clash.name}: ${clash.clashes.join("; ")}. Identity is back in question.`;
+  }
+
+  if (row.status === "review" && row.candidates.length) {
+    const surviving = row.candidates.filter((candidate) =>
+      matchesHint(candidate.team_id, row.hints.team) && matchesHint(candidate.position, row.hints.position));
+    if (surviving.length === 1) {
+      Object.assign(row, { status: "resolved", match: surviving[0], confirmed: true, confirmedBy: "hint" });
+      return `${surviving[0].name} discriminated by the hint.`;
+    }
+    if (surviving.length === 0) {
+      row.conflict = { name: null, gsis_id: null, clashes: ["no retained candidate matches the hint"] };
+      return "No retained candidate matches that hint, so none was chosen.";
+    }
+    row.candidates = surviving;
+    return `${surviving.length} candidates still match. A ${discriminators(surviving).join(" or ") || "further"} hint would separate them.`;
+  }
+
+  // A name the index does not hold stays unresolved. Hints travel with the
+  // request; they do not make a match where there was none.
+  return "Hints recorded. They travel with the identity request.";
+}
+
 // --------------------------------------------------------------- extract ---
 // Ordinary English words that are also given names. A blanket stop on "will"
 // silently drops Will Kacmarek; no stop at all reads "Colts Will Start" as a
@@ -383,11 +472,14 @@ function readSource(text, kind) {
 // What the line says wins: it is about this player, where a document header is
 // only about the file.
 function mergeHints(line, structural) {
-  if (!structural) return { position: line.position, team: line.team, teamBasis: line.team ? "observed" : null };
+  const position = line.position ?? structural?.position ?? null;
   return {
-    position: line.position ?? structural.position ?? null,
-    team: line.team ?? structural.team ?? null,
-    teamBasis: line.team ? "observed" : structural.teamBasis,
+    position,
+    // Everything a source states -- on the line or through the shape of the
+    // document -- is observed. Only a person typing into the canvas is not.
+    positionBasis: position ? "observed" : null,
+    team: line.team ?? structural?.team ?? null,
+    teamBasis: line.team ? "observed" : structural?.teamBasis ?? null,
   };
 }
 
@@ -407,7 +499,7 @@ function kindOf(file) {
 
 // ----------------------------------------------------------------- state ---
 const state = {
-  sources: [], rows: [], filter: "all", rowSeq: 0, sourceSeq: 0,
+  sources: [], rows: [], filter: "all", rowSeq: 0, sourceSeq: 0, editingRow: null,
   // Stamped once when a batch begins, so the manifest a preview shows is the
   // manifest an export writes.
   batchId: null, assembledAt: null,
@@ -443,7 +535,10 @@ function addCandidate(name, hints, source, fields = null) {
   if (existing) {
     existing.occurrences += 1;
     if (source && !existing.sourceIds.includes(source.id)) existing.sourceIds.push(source.id);
-    existing.hints.position ??= hints.position ?? null;
+    if (hints.position && !existing.hints.position) {
+      existing.hints.position = hints.position;
+      existing.hints.positionBasis = hints.positionBasis ?? null;
+    }
     existing.source_fields ??= fields;
     // A team seen beside the player outranks one inherited from a file header.
     if (hints.team && (!existing.hints.team || (hints.teamBasis === "observed" && existing.hints.teamBasis === "document"))) {
@@ -461,7 +556,14 @@ function addCandidate(name, hints, source, fields = null) {
     key,
     occurrences: 1,
     sourceIds: source ? [source.id] : [],
-    hints: { position: hints.position ?? null, team: hints.team ?? null, teamBasis: hints.teamBasis ?? null },
+    hints: {
+      position: hints.position ?? null,
+      positionBasis: hints.positionBasis ?? null,
+      team: hints.team ?? null,
+      teamBasis: hints.teamBasis ?? null,
+    },
+    analyst_note: null,
+    conflict: null,
     source_fields: fields,
     confirmed: false,
     ...resolveName(name),
@@ -552,6 +654,50 @@ function statusTag(row) {
   return '<span class="intake-tag upstream">Upstream</span>';
 }
 
+const BASIS_LABELS = { document: "file hint", analyst: "your hint", observed: "hint" };
+const BASIS_TITLES = {
+  document: "Taken from the file header, not from this player's row. Rosters go stale \u2014 verify before trusting it.",
+  analyst: "Supplied here to narrow the search. It discriminates between candidates; it never establishes identity.",
+  observed: "Stated by the source beside this player.",
+};
+
+// The canvas asks for the detail that would actually settle the row, rather
+// than asking for hints in general.
+function hintPrompt(row) {
+  const fields = row.candidates.length > 1 ? discriminators(row.candidates) : [];
+  // Only say something a row-by-row reading needs. The generic case is already
+  // stated once by the row's own status, and repeating it forty times is noise.
+  const ask = fields.length
+    ? `A ${fields.join(" or ")} hint separates these candidates.`
+    : row.status === "review" ? "A hint would help confirm which identity this is." : "";
+  return `<div class="intake-ask">
+    ${ask ? `<span>${escapeHtml(ask)}</span>` : ""}
+    <button type="button" class="intake-button intake-button-sm" data-action="hint" data-row="${row.id}">Add hints</button>
+  </div>`;
+}
+
+// Prefilled only with what a person typed here before. Prefilling a source's
+// own hint would relabel it as the analyst's the moment the form was applied.
+function hintEditor(row) {
+  const mine = (field) => (row.hints[`${field}Basis`] === "analyst" ? row.hints[field] ?? "" : "");
+  return `<tr class="intake-hint-row"><td colspan="7">
+    <form class="intake-hint-form" data-hint-form="${row.id}">
+      <p class="intake-hint-lede">Clarifying details for <strong>${escapeHtml(row.captured)}</strong>. Hints
+        discriminate between candidates the canonical index already holds \u2014 they never establish identity, and one
+        that contradicts the index stops the row rather than overriding it.</p>
+      <div class="intake-hint-fields">
+        <label>Team<input name="team" class="search-input" autocomplete="off" value="${escapeHtml(mine("team"))}"></label>
+        <label>Position<input name="position" class="search-input" autocomplete="off" value="${escapeHtml(mine("position"))}"></label>
+        <label class="intake-hint-note">Note<input name="note" class="search-input" autocomplete="off" value="${escapeHtml(row.analyst_note ?? "")}"></label>
+      </div>
+      <div class="intake-hint-actions">
+        <button type="submit" class="toggle-button is-active">Apply hints</button>
+        <button type="button" class="intake-button" data-action="hint-cancel">Cancel</button>
+      </div>
+    </form>
+  </td></tr>`;
+}
+
 function renderRows() {
   const visible = state.rows.filter((row) => state.filter === "all" || row.status === state.filter);
   els.table.hidden = state.rows.length === 0;
@@ -568,6 +714,11 @@ function renderRows() {
     const sourceText = labels.length ? labels[0] + (labels.length > 1 ? ` +${labels.length - 1}` : "") : "\u2014";
 
     let resolution = statusTag(row);
+    if (row.conflict) {
+      const against = row.conflict.name ? ` for ${row.conflict.name}` : "";
+      resolution += `<div class="intake-conflict">Hint disagrees with the canonical index${escapeHtml(against)}:
+        ${escapeHtml(row.conflict.clashes.join("; "))}. Resolve it upstream rather than overriding it here.</div>`;
+    }
     if (row.status === "review") {
       const options = row.candidates.map((candidate) =>
         `<option value="${escapeHtml(candidate.gsis_id)}">${escapeHtml(candidate.name)} \u00b7 ${escapeHtml(candidate.position ?? "")} ${escapeHtml(candidate.team_id ?? "")}</option>`
@@ -577,18 +728,19 @@ function renderRows() {
           <option value="">Choose identity\u2026</option>${options}
           <option value="__upstream">Not in index \u2014 send upstream</option>
         </select></div>`;
+      resolution += hintPrompt(row);
     } else if (row.status === "pending") {
       resolution += '<div class="intake-sub">resolution request, no fact asserted</div>';
+      resolution += hintPrompt(row);
     } else if (match) {
       resolution += `<div class="intake-sub">${escapeHtml((match.capture_status ?? "unknown").replace(/_/g, " "))} \u00b7 ${escapeHtml(match.captured_at ?? "no capture date")}</div>`;
     }
 
-    const hintCell = (value, hint, label = "hint", title = "") => value
+    const hintCell = (value, hint, basis) => value
       ? `<span class="intake-slot">${escapeHtml(value)}</span>`
       : hint
-        ? `<span class="intake-slot">${escapeHtml(hint)}</span><div class="intake-sub"${title ? ` title="${escapeHtml(title)}"` : ""}>${label}</div>`
+        ? `<span class="intake-slot">${escapeHtml(hint)}</span><div class="intake-sub" title="${escapeHtml(BASIS_TITLES[basis] ?? "")}">${escapeHtml(BASIS_LABELS[basis] ?? "hint")}</div>`
         : '<span class="intake-slot">\u2014</span>';
-    const fromFile = row.hints.teamBasis === "document";
 
     return `<tr>
       <td>
@@ -597,20 +749,22 @@ function renderRows() {
         ${row.occurrences > 1 ? `<div class="intake-sub">${row.occurrences} occurrences</div>` : ""}
       </td>
       <td><span class="intake-gsis${match ? "" : " none"}">${match ? escapeHtml(match.gsis_id) : "\u2014"}</span></td>
-      <td>${hintCell(match?.position, row.hints.position)}</td>
-      <td>${hintCell(match?.team_id, row.hints.team, fromFile ? "file hint" : "hint",
-        fromFile ? "Taken from the file header, not from this player's row. Rosters go stale \u2014 verify before trusting it." : "")}</td>
+      <td>${hintCell(match?.position, row.hints.position, row.hints.positionBasis)}</td>
+      <td>${hintCell(match?.team_id, row.hints.team, row.hints.teamBasis)}</td>
       <td>${resolution}</td>
       <td><span class="intake-sub" title="${escapeHtml(labels.join(", "))}">${escapeHtml(sourceText)}</span></td>
       <td class="intake-row-actions">
+        ${match ? `<button type="button" class="intake-icon" data-action="hint" data-row="${row.id}"
+          title="Add what you know about ${escapeHtml(row.captured)}. A hint that contradicts the canonical index stops the row rather than overriding it.">\u270e</button>` : ""}
         ${match ? "" : `<a class="intake-icon" href="${escapeHtml(intakeIssueUrl({
           player_name: row.captured,
-          team_hint: row.hints.teamBasis === "observed" ? row.hints.team : null,
+          team_hint: row.hints.teamBasis === "document" ? null : row.hints.team,
           position_hint: row.hints.position,
+          notes: row.analyst_note,
         }))}" target="_blank" rel="noopener" title="Open an identity search request for ${escapeHtml(row.captured)}">\u2197</a>`}
         <button type="button" class="intake-icon" data-action="drop" data-row="${row.id}" aria-label="Remove ${escapeHtml(row.captured)}">\u2715</button>
       </td>
-    </tr>`;
+    </tr>${state.editingRow === row.id ? hintEditor(row) : ""}`;
   }).join("");
 }
 
@@ -1000,10 +1154,39 @@ export function initIntake(manifests) {
   });
 
   els.tbody.addEventListener("click", (event) => {
+    const open = event.target.closest("[data-action='hint']");
+    if (open) {
+      state.editingRow = state.editingRow === open.dataset.row ? null : open.dataset.row;
+      renderRows();
+      els.tbody.querySelector(".intake-hint-form input")?.focus();
+      return;
+    }
+    if (event.target.closest("[data-action='hint-cancel']")) {
+      state.editingRow = null;
+      renderRows();
+      return;
+    }
     const button = event.target.closest("[data-action='drop']");
     if (!button) return;
     state.rows = state.rows.filter((row) => row.id !== button.dataset.row);
     render();
+  });
+
+  els.tbody.addEventListener("submit", (event) => {
+    const form = event.target.closest("[data-hint-form]");
+    if (!form) return;
+    event.preventDefault();
+    const row = state.rows.find((entry) => entry.id === form.dataset.hintForm);
+    if (!row) return;
+    const fields = new FormData(form);
+    const outcome = applyAnalystHints(row, {
+      team: fields.get("team"),
+      position: fields.get("position"),
+      note: fields.get("note"),
+    });
+    state.editingRow = null;
+    render();
+    announce(outcome);
   });
 
   els.tbody.addEventListener("change", (event) => {
@@ -1036,6 +1219,7 @@ export function initIntake(manifests) {
     state.sources = [];
     state.batchId = null;
     state.assembledAt = null;
+    state.editingRow = null;
     render();
     announce("Batch cleared.");
   });

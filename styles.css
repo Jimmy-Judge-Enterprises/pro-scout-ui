@@ -258,3 +258,18 @@ h1 { margin: 2px 0 0; font-size: 22px; }
 #intake-blockers { display: grid; gap: 8px; }
 .intake-row-actions { display: flex; gap: 2px; align-items: start; }
 .intake-row-actions a { text-decoration: none; }
+
+/* Clarifying hints. The canvas asks for the detail that would settle a row,
+   and marks what it was told apart from what a source said. */
+.intake-ask { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; margin-top: 8px; font-size: 11.5px; color: #62789a; }
+.intake-button-sm { padding: 4px 10px; border-radius: 7px; font-size: 12px; }
+.intake-conflict { margin-top: 7px; padding: 8px 10px; border-left: 3px solid #d75a5a; border-radius: 7px; background: #1b1113; font-size: 12.5px; line-height: 1.5; color: #f0c9c9; }
+.intake-hint-row > td { background: #0c1626; border-bottom: 1px solid #223148; }
+.intake-hint-form { display: grid; gap: 12px; padding: 4px 0 8px; }
+.intake-hint-lede { margin: 0; max-width: 78ch; font-size: 12.5px; line-height: 1.55; color: #8fa4bf; }
+.intake-hint-lede strong { color: #edf3fb; }
+.intake-hint-fields { display: grid; grid-template-columns: 120px 120px minmax(0, 1fr); gap: 12px; }
+.intake-hint-fields label { display: grid; gap: 5px; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: #738aa5; }
+.intake-hint-actions { display: flex; gap: 9px; align-items: center; flex-wrap: wrap; }
+.intake-hint-actions button { cursor: pointer; }
+@media (max-width: 760px) { .intake-hint-fields { grid-template-columns: 1fr; } }
