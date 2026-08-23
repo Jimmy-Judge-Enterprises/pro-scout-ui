@@ -149,15 +149,30 @@ function resolveName(name) {
 }
 
 // --------------------------------------------------------------- extract ---
+// Ordinary English words that are also given names. A blanket stop on "will"
+// silently drops Will Kacmarek; no stop at all reads "Colts Will Start" as a
+// player. They stop a run only when what follows is not itself a name.
+const SOFT_STOP = new Set("will may march april june august camp free pick".split(" "));
+
 const tokenize = (line) => line.split(/[\s/\\\t"\u201c\u201d:{}[\]()<>=]+/).filter(Boolean);
 const cleanToken = (token) => token.replace(/^[^A-Za-z]+/, "").replace(/[^A-Za-z.'\u2019-]+$/, "");
 
-function isNameToken(token) {
+function nameTokenKind(token) {
   const cleaned = cleanToken(token);
-  if (cleaned.length < 2) return false;
-  if (!/^[A-Z][A-Za-z.'\u2019-]*$/.test(cleaned)) return false;
+  if (cleaned.length < 2) return "no";
+  if (!/^[A-Z][A-Za-z.'\u2019-]*$/.test(cleaned)) return "no";
   const flat = cleaned.replace(/[^A-Za-z]/g, "").toUpperCase();
-  return Boolean(flat) && !POSITIONS.has(flat) && !index.teams.has(flat) && !STOP.has(flat.toLowerCase());
+  if (!flat || POSITIONS.has(flat) || index.teams.has(flat)) return "no";
+  const word = flat.toLowerCase();
+  if (SOFT_STOP.has(word)) return "soft";
+  return STOP.has(word) ? "no" : "yes";
+}
+
+// A soft stop earns its place in a run only when a real name follows it.
+function isNameToken(token, next) {
+  const kind = nameTokenKind(token);
+  if (kind === "soft") return next !== undefined && nameTokenKind(next) === "yes";
+  return kind === "yes";
 }
 
 // Rosters are often shouted. Restore sentence case so the captured name reads
@@ -177,9 +192,10 @@ const isIndexed = (name) => index.byKey.has(nameKey(fixCase(name)));
 
 function runsFromSegment(segment, found) {
   const runs = [];
+  const tokens = tokenize(segment);
   let run = [];
-  for (const token of tokenize(segment)) {
-    if (isNameToken(token)) run.push(cleanToken(token));
+  for (let i = 0; i < tokens.length; i++) {
+    if (isNameToken(tokens[i], tokens[i + 1])) run.push(cleanToken(tokens[i]));
     else {
       if (run.length) runs.push(run);
       run = [];
