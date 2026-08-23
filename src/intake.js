@@ -498,6 +498,12 @@ function kindOf(file) {
 }
 
 // ----------------------------------------------------------------- state ---
+// Extraction is a synchronous scan, so a large capture blocks the page while it
+// runs -- roughly two thirds of a second per megabyte. A roster, depth chart or
+// transcript is far below this; something this size is not one, and the page
+// says so rather than freezing for ten seconds pretending otherwise.
+const MAX_TEXT_BYTES = 4 * 1024 * 1024;
+
 const state = {
   sources: [], rows: [], filter: "all", rowSeq: 0, sourceSeq: 0, editingRow: null,
   // Stamped once when a batch begins, so the manifest a preview shows is the
@@ -688,12 +694,31 @@ function handleFiles(files) {
       continue;
     }
 
+    if (file.size > MAX_TEXT_BYTES) {
+      addSource({
+        kind, label: file.name, bytes: file.size, mode: "deferred_upstream",
+        note: `too large to read here (over ${Math.round(MAX_TEXT_BYTES / 1048576)} MB)`,
+      });
+      render();
+      announce(`${file.name} is too large to read in the browser and was staged for upstream.`);
+      continue;
+    }
+
     const reader = new FileReader();
     reader.onload = () => {
-      const source = addSource({ kind, label: file.name, bytes: file.size, mode: "in_browser" });
-      const { added } = ingestText(String(reader.result ?? ""), source);
+      const source = addSource({ kind, label: file.name, bytes: file.size, mode: "in_browser", reading: true });
       render();
-      announce(`${file.name}: ${added} new name${added === 1 ? "" : "s"} extracted.`);
+      // Yield past a frame so the reading state actually paints before the scan
+      // blocks the thread; a zero delay can run before the browser has drawn
+      // anything, and the card would appear only once the work was over -- the
+      // moment it stops being useful. A timer rather than requestAnimationFrame,
+      // which does not fire in a background tab and would strand the extraction.
+      setTimeout(() => {
+        const { added } = ingestText(String(reader.result ?? ""), source);
+        source.reading = false;
+        render();
+        announce(`${file.name}: ${added} new name${added === 1 ? "" : "s"} extracted.`);
+      }, 32);
     };
     reader.onerror = () => {
       addSource({ kind: "binary", label: file.name, bytes: file.size, mode: "deferred_upstream", note: "could not be read here" });
@@ -857,7 +882,7 @@ function renderSources() {
     const readHere = source.mode === "in_browser";
     const meta = [
       formatBytes(source.bytes),
-      readHere ? `${source.extracted} name${source.extracted === 1 ? "" : "s"}` : source.note,
+      source.reading ? "reading\u2026" : readHere ? `${source.extracted} name${source.extracted === 1 ? "" : "s"}` : source.note,
       source.declared?.provider,
       source.declared?.capture_status,
     ].filter(Boolean).join(" \u00b7 ");
