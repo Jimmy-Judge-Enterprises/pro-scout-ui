@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gameplan.local/schemas/ingestion/player_observation.schema.json",
+  "title": "Gameplan Player Observation Provider Contract v1.2",
+  "description": "Production boundary contract for player-centric facts supplied by Pro-Scout or another upstream provider. The provider MUST resolve the source player to GSIS before submission. Gameplan validates GSIS but never infers production identity from names or alternate identifiers. effective_at, observed_at and known_at are distinct clocks. v1.2 adds the Anatomy WR/RB factual profile domain.",
+  "type": "object",
+  "required": ["schema_version", "record_type", "gsis_id", "source_id", "observed_at", "known_at", "fact_domain", "facts"],
+  "properties": {
+    "schema_version": {"enum": ["1.0.0", "1.1.0", "1.2.0"]},
+    "record_type": {"const": "player_observation"},
+    "observation_id": {"type": "string", "minLength": 1, "description": "Optional provider or transport observation identifier. Gameplan may assign its own immutable observation ID on acceptance."},
+    "gsis_id": {"type": "string", "pattern": "^00-[0-9]{7}$", "description": "REQUIRED canonical player identity supplied upstream. Names and alternate IDs may never substitute for this field."},
+    "source_id": {"type": "string", "minLength": 1, "description": "Stable provider/source identifier registered with Gameplan."},
+    "observed_at": {"type": "string", "format": "date-time", "description": "When the source asserted/displayed the information."},
+    "known_at": {"type": "string", "format": "date-time", "description": "When Gameplan first possessed this observation. Historical decisions may not use observations learned after their information cutoff."},
+    "retrieved_at": {"type": ["string", "null"], "format": "date-time", "description": "Optional retrieval time; operationally distinct from source assertion and Gameplan knowledge time."},
+    "fact_domain": {
+      "enum": ["identity_reference", "measurements", "athletic_profile", "anatomy_profile", "draft", "contract", "depth_chart", "role", "usage", "performance", "injury", "projection", "team_context", "scoring_opportunity", "discipline", "transaction"],
+      "description": "Routes the facts payload to its domain-specific validation contract. Expansion requires an explicit schema/version change. anatomy_profile uses schemas/ingestion/facts/anatomy_profile.schema.json."
+    },
+    "source_record_id": {"type": ["string", "null"]},
+    "source_url": {"type": ["string", "null"], "format": "uri"},
+    "source_version": {"type": ["string", "null"]},
+    "source_identity": {
+      "type": ["object", "null"],
+      "description": "Diagnostic metadata only. These fields never establish or override player identity.",
+      "properties": {
+        "name": {"type": ["string", "null"]},
+        "team": {"type": ["string", "null"]},
+        "position": {"type": ["string", "null"]},
+        "external_ids": {"type": ["object", "null"], "additionalProperties": {"type": ["string", "number", "null"]}}
+      },
+      "additionalProperties": true
+    },
+    "effective": {
+      "type": ["object", "null"],
+      "description": "Football/business effective period; distinct from source observation, Gameplan knowledge and retrieval times.",
+      "properties": {
+        "season": {"type": ["integer", "null"], "minimum": 1920, "maximum": 2200},
+        "week": {"type": ["integer", "null"], "minimum": 0, "maximum": 30},
+        "effective_from": {"type": ["string", "null"], "format": "date"},
+        "effective_to": {"type": ["string", "null"], "format": "date"}
+      },
+      "additionalProperties": false
+    },
+    "facts": {"type": "object", "description": "Source observations. Domain-specific schemas constrain this object downstream; model judgments must not be inserted as Gameplan facts."},
+    "quality": {
+      "type": ["object", "null"],
+      "description": "Optional quality metadata about the source assertion/payload, never probabilistic player identity confidence.",
+      "properties": {
+        "source_confidence": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+        "completeness": {"type": ["number", "null"], "minimum": 0, "maximum": 1}
+      },
+      "additionalProperties": false
+    },
+    "ingestion": {
+      "type": ["object", "null"],
+      "properties": {
+        "batch_id": {"type": ["string", "null"]},
+        "adapter_version": {"type": ["string", "null"]}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

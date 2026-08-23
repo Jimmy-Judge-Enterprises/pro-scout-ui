@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gameplan.local/schemas/ingestion/facts/identity_reference.schema.json",
+  "title": "Identity Reference Facts",
+  "description": "Optional source-provided identity descriptors and alternate IDs. These fields are diagnostic/enrichment only and never override the top-level gsis_id.",
+  "type": "object",
+  "properties": {
+    "display_name": {"type": ["string", "null"]},
+    "first_name": {"type": ["string", "null"]},
+    "last_name": {"type": ["string", "null"]},
+    "football_name": {"type": ["string", "null"]},
+    "team": {"type": ["string", "null"]},
+    "position": {"type": ["string", "null"]},
+    "jersey_number": {"type": ["integer", "string", "null"]},
+    "college": {"type": ["string", "null"]},
+    "birth_date": {"type": ["string", "null"], "format": "date"},
+    "external_ids": {
+      "type": ["object", "null"],
+      "properties": {
+        "smart_id": {"type": ["string", "null"]},
+        "pfr_id": {"type": ["string", "null"]},
+        "pff_id": {"type": ["string", "number", "null"]},
+        "otc_id": {"type": ["string", "number", "null"]},
+        "esb_id": {"type": ["string", "null"]},
+        "espn_id": {"type": ["string", "number", "null"]},
+        "playerprofiler_id": {"type": ["string", "null"]},
+        "cbs_id": {"type": ["string", "number", "null"]}
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}

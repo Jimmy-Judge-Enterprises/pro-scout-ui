@@ -147,20 +147,13 @@
               <div class="intake-block">
                 <div class="intake-block-head"><span class="intake-block-title">Web page</span></div>
                 <label class="intake-sr" for="intake-url">Page URL</label>
-                <input id="intake-url" class="search-input" type="url" inputmode="url"
-                       placeholder="https://example.com/depth-chart" />
+                <input id="intake-url" class="search-input" type="url" inputmode="url" />
                 <div class="intake-actions">
                   <button type="button" class="intake-button" id="intake-stage-url">Stage for upstream fetch</button>
                 </div>
                 <p class="intake-hint">This page holds no credentials and makes no API calls, so it cannot fetch the
                   page itself. Stage the URL for the upstream fetcher &mdash; or copy the page&rsquo;s list and paste it
                   above to extract now.</p>
-              </div>
-
-              <div class="intake-block">
-                <div class="intake-block-head"><span class="intake-block-title">Curated defaults</span></div>
-                <div class="intake-chips" id="intake-favorites"></div>
-                <p class="intake-hint">Shortcuts derived from the player manifest.</p>
               </div>
 
               <div class="intake-block">
@@ -233,19 +226,26 @@
                 </div>
               </section>
 
+              <!-- The production boundary. Two artifacts leave here and they are
+                   never mixed: observations for proven identities, and identity
+                   searches for everything else. -->
               <section class="card intake-card">
                 <div class="intake-card-head">
                   <div>
-                    <h3 class="intake-card-title">Contract payload</h3>
-                    <p class="intake-card-sub">pro-scout-ui.intake-batch.v1 &middot; Gameplan contract 2.0</p>
+                    <h3 class="intake-card-title">Boundary bundle</h3>
+                    <p class="intake-card-sub">player_observation v1.2.0 &middot; batch_manifest v1.0.0</p>
                   </div>
                   <div class="intake-actions">
-                    <button type="button" class="intake-button" id="intake-copy">Copy JSON</button>
-                    <button type="button" class="toggle-button is-active" id="intake-save">Download .json</button>
+                    <button type="button" class="intake-button" id="intake-save-requests" disabled>Identity requests</button>
+                    <button type="button" class="intake-button" id="intake-save-manifest" disabled>Batch manifest</button>
+                    <button type="button" class="toggle-button is-active" id="intake-save-data" disabled>Observations .jsonl</button>
                   </div>
                 </div>
-                <pre class="intake-payload" id="intake-payload">{}</pre>
-                <p class="intake-payload-note" id="intake-payload-note"></p>
+                <div class="intake-bundle-body">
+                  <div id="intake-bundle-summary"></div>
+                  <pre class="intake-payload" id="intake-manifest" hidden></pre>
+                  <div id="intake-blockers"></div>
+                </div>
               </section>
             </div>
           </div>

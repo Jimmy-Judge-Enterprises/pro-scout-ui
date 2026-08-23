@@ -13,6 +13,7 @@
 // upstream pipeline, where OCR, transcription and fetching actually run.
 
 import { escapeHtml } from "./escape.js";
+import { buildBundle, buildRequestsDocument, intakeIssueUrl, sourceIdFor } from "./contract.js";
 
 const SUFFIXES = new Set(["jr", "sr", "ii", "iii", "iv", "v"]);
 
@@ -262,6 +263,8 @@ function htmlLines(text) {
   return (doc.body?.textContent ?? "").split(/\r?\n/);
 }
 
+const str = (value) => (typeof value === "string" && value.trim() ? value.trim() : null);
+
 const positionCode = (value) => {
   const code = typeof value === "string" ? value.trim().toUpperCase() : "";
   return POSITIONS.has(code) ? code : null;
@@ -308,6 +311,13 @@ function readJson(text) {
           team: ownTeam ?? fileTeam,
           teamBasis: ownTeam ? "observed" : fileTeam ? "document" : null,
         },
+        // Kept verbatim for the fact domains downstream; a null depth stays null.
+        source_fields: {
+          depth: Number.isInteger(node.depth) ? node.depth : null,
+          role: str(node.role),
+          status: str(node.status),
+          source_basis: str(node.source_basis),
+        },
       });
     }
     // "positions": { "RB": [...] } -- the key is the position.
@@ -317,10 +327,17 @@ function readJson(text) {
   };
   walk(data, null);
 
+  // observed_at and checked_at are different clocks. When the source asserted
+  // the information and when we looked are not interchangeable, and collapsing
+  // them would manufacture an observation time the capture never gave.
   const declared = {
-    provider: typeof data.source?.provider === "string" ? data.source.provider : null,
-    capture_status: typeof data.capture_status === "string" ? data.capture_status : null,
-    observed_at: [data.source_observation_date, data.source_checked_at].find((v) => typeof v === "string") ?? null,
+    provider: str(data.source?.provider),
+    source_type: str(data.source?.type),
+    url: str(data.source?.url),
+    capture_status: str(data.capture_status),
+    observed_at: str(data.source_observation_date),
+    checked_at: str(data.source_checked_at),
+    team: fileTeam,
   };
   return { records, declared: Object.values(declared).some(Boolean) ? declared : null };
 }
@@ -357,7 +374,10 @@ function readSource(text, kind) {
     const parsed = readJson(text);
     if (parsed) return parsed;
   }
-  return { records: linesFor(text, kind).map((line) => ({ text: line, hints: null })), declared: null };
+  return {
+    records: linesFor(text, kind).map((line) => ({ text: line, hints: null, source_fields: null })),
+    declared: null,
+  };
 }
 
 // What the line says wins: it is about this player, where a document header is
@@ -386,13 +406,20 @@ function kindOf(file) {
 }
 
 // ----------------------------------------------------------------- state ---
-const state = { sources: [], rows: [], filter: "all", rowSeq: 0, sourceSeq: 0 };
+const state = {
+  sources: [], rows: [], filter: "all", rowSeq: 0, sourceSeq: 0,
+  // Stamped once when a batch begins, so the manifest a preview shows is the
+  // manifest an export writes.
+  batchId: null, assembledAt: null,
+  schemas: null, schemaError: null,
+  bundle: null,
+};
 
 const els = {};
 let dragDepth = 0;
 
 function addSource(source) {
-  const entry = { id: `src-${++state.sourceSeq}`, extracted: 0, thumb: null, note: null, ...source };
+  const entry = { id: `src-${++state.sourceSeq}`, extracted: 0, note: null, ...source };
   state.sources.push(entry);
   return entry;
 }
@@ -408,7 +435,7 @@ function removeSource(id) {
   render();
 }
 
-function addCandidate(name, hints, source) {
+function addCandidate(name, hints, source, fields = null) {
   const key = nameKey(name);
   if (key.length < 3) return false;
 
@@ -417,6 +444,7 @@ function addCandidate(name, hints, source) {
     existing.occurrences += 1;
     if (source && !existing.sourceIds.includes(source.id)) existing.sourceIds.push(source.id);
     existing.hints.position ??= hints.position ?? null;
+    existing.source_fields ??= fields;
     // A team seen beside the player outranks one inherited from a file header.
     if (hints.team && (!existing.hints.team || (hints.teamBasis === "observed" && existing.hints.teamBasis === "document"))) {
       existing.hints.team = hints.team;
@@ -425,6 +453,8 @@ function addCandidate(name, hints, source) {
     return false;
   }
 
+  state.batchId ??= newBatchId();
+  state.assembledAt ??= new Date().toISOString();
   state.rows.push({
     id: `row-${++state.rowSeq}`,
     captured: name,
@@ -432,6 +462,7 @@ function addCandidate(name, hints, source) {
     occurrences: 1,
     sourceIds: source ? [source.id] : [],
     hints: { position: hints.position ?? null, team: hints.team ?? null, teamBasis: hints.teamBasis ?? null },
+    source_fields: fields,
     confirmed: false,
     ...resolveName(name),
   });
@@ -452,8 +483,11 @@ function ingestText(text, source) {
     // hints are safe either way -- they came from the shape of the document.
     const inline = names.length === 1 ? hintsFromLine(record.text) : { position: null, team: null };
     const hints = mergeHints(inline, record.hints);
+    // Source fields describe one player, so they only attach when the line
+    // named exactly one.
+    const fields = names.length === 1 ? record.source_fields : null;
     for (const name of names) {
-      if (addCandidate(name, hints, source)) added += 1;
+      if (addCandidate(name, hints, source, fields)) added += 1;
       found.push(name);
     }
   }
@@ -473,15 +507,9 @@ function handleFiles(files) {
       const note = kind === "image" ? "queued for upstream OCR"
         : kind === "video" ? "queued for upstream transcription"
         : "unreadable in the browser";
-      const source = addSource({ kind, label: file.name, bytes: file.size, mode: "deferred_upstream", note });
-      if (kind === "image" && file.size < 8 * 1024 * 1024) {
-        const reader = new FileReader();
-        reader.onload = () => {
-          source.thumb = reader.result;
-          render();
-        };
-        reader.readAsDataURL(file);
-      }
+      // Staged, not read. The file is never decoded into the page: there is no
+      // preview to render because nothing here can read it.
+      addSource({ kind, label: file.name, bytes: file.size, mode: "deferred_upstream", note });
       render();
       announce(`${file.name} staged for the upstream pipeline.`);
       continue;
@@ -574,7 +602,14 @@ function renderRows() {
         fromFile ? "Taken from the file header, not from this player's row. Rosters go stale \u2014 verify before trusting it." : "")}</td>
       <td>${resolution}</td>
       <td><span class="intake-sub" title="${escapeHtml(labels.join(", "))}">${escapeHtml(sourceText)}</span></td>
-      <td><button type="button" class="intake-icon" data-action="drop" data-row="${row.id}" aria-label="Remove ${escapeHtml(row.captured)}">\u2715</button></td>
+      <td class="intake-row-actions">
+        ${match ? "" : `<a class="intake-icon" href="${escapeHtml(intakeIssueUrl({
+          player_name: row.captured,
+          team_hint: row.hints.teamBasis === "observed" ? row.hints.team : null,
+          position_hint: row.hints.position,
+        }))}" target="_blank" rel="noopener" title="Open an identity search request for ${escapeHtml(row.captured)}">\u2197</a>`}
+        <button type="button" class="intake-icon" data-action="drop" data-row="${row.id}" aria-label="Remove ${escapeHtml(row.captured)}">\u2715</button>
+      </td>
     </tr>`;
   }).join("");
 }
@@ -594,9 +629,7 @@ function renderSources() {
       source.declared?.provider,
       source.declared?.capture_status,
     ].filter(Boolean).join(" \u00b7 ");
-    const badge = source.thumb
-      ? `<img class="intake-thumb" src="${escapeHtml(source.thumb)}" alt="">`
-      : `<span class="intake-kind">${escapeHtml(KIND_LABELS[source.kind] ?? "SRC")}</span>`;
+    const badge = `<span class="intake-kind">${escapeHtml(KIND_LABELS[source.kind] ?? "SRC")}</span>`;
 
     return `<div class="intake-source">
       ${badge}
@@ -612,68 +645,92 @@ function renderSources() {
   }).join("");
 }
 
-// The payload is the whole point of the canvas: what the downstream Gameplan
-// app is handed. A record without a GSIS id is published as a request, never
-// as a fact.
-function buildPayload() {
-  const tally = counts();
-  return {
-    schema_version: "pro-scout-ui.intake-batch.v1",
-    generated_by: "pro-scout-ui/intake-canvas",
-    target_repo: "Jimmy-Judge-Enterprises/pro-scout",
-    season: 2026,
-    contract_version: "2.0",
-    counts: {
-      candidates: tally.total,
-      contract_ready: tally.resolved,
-      needs_review: tally.review,
-      pending_upstream: tally.pending,
-    },
-    sources: state.sources.map((source) => ({
-      source_id: source.id,
-      kind: source.kind,
-      label: source.label,
-      extraction: source.mode,
-      ...(source.bytes == null ? {} : { bytes: source.bytes }),
-      ...(source.note ? { deferred_reason: source.note } : {}),
-      ...(source.declared ? { declared: source.declared } : {}),
-      names_extracted: source.mode === "in_browser" ? source.extracted : null,
-    })),
-    records: state.rows.map((row) => {
-      const match = row.match;
-      return {
-        name_as_captured: row.captured,
-        gsis_id: match?.gsis_id ?? null,
-        name: match?.name ?? row.captured,
-        name_resolved: Boolean(match),
-        position: match?.position ?? null,
-        team_id: match?.team_id ?? null,
-        resolution: match ? (row.confirmed ? "analyst_confirmed" : "nflverse_index") : "pending_upstream",
-        record_uri: match ? `pro-scout:players/${match.gsis_id}.json` : null,
-        provenance: { source_ids: [...row.sourceIds], occurrences: row.occurrences },
-        ...(match ? {} : {
-          hints: {
-            team_id: row.hints.team,
-            team_id_basis: row.hints.teamBasis,
-            position: row.hints.position,
-          },
-          status: row.status === "review" ? "awaiting_analyst_review" : "awaiting_identity_resolution",
-        }),
-      };
-    }),
-  };
+// SHA-256 of the data file, when the runtime offers it. A page served without
+// a secure context has no subtle crypto; the manifest contract permits a null
+// hash, and reporting null is honest where inventing one would not be.
+function newBatchId() {
+  if (crypto.randomUUID) return crypto.randomUUID();
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  return [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
-function renderPayload() {
-  const tally = counts();
-  els.payload.textContent = JSON.stringify(buildPayload(), null, 2);
-  els.payloadNote.innerHTML =
-    `<strong>${tally.resolved} of ${tally.total}</strong> record${tally.total === 1 ? "" : "s"} carry a GSIS id and are ` +
-    "contract-compliant for the downstream Gameplan app. The rest leave this canvas as resolution requests \u2014 " +
-    "a name and its hints, never an asserted fact.";
-  const empty = !state.rows.length && !state.sources.length;
-  els.copyJson.disabled = empty;
-  els.saveJson.disabled = empty;
+async function digest(text) {
+  if (!globalThis.crypto?.subtle) return null;
+  const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return [...new Uint8Array(hash)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+let bundleToken = 0;
+
+async function renderBundle() {
+  const token = ++bundleToken;
+  const ready = Boolean(state.schemas);
+  state.bundle = ready && state.rows.length
+    ? await buildBundle({
+        rows: state.rows,
+        sources: state.sources,
+        schemas: state.schemas,
+        knownAt: state.assembledAt,
+        batchId: state.batchId,
+        digest,
+      })
+    : null;
+  // A newer batch overtook this one while the digest was resolving.
+  if (token !== bundleToken) return;
+
+  const bundle = state.bundle;
+  els.manifest.textContent = bundle?.manifest ? JSON.stringify(bundle.manifest, null, 2) : "";
+  els.manifest.hidden = !bundle?.manifest;
+
+  els.saveManifest.disabled = !bundle?.manifest;
+  els.saveData.disabled = !bundle?.manifest;
+  els.saveRequests.disabled = !bundle?.requests.length;
+
+  els.countContract.textContent = bundle?.counts.observations ?? 0;
+  els.stages[3].classList.toggle("is-live", Boolean(bundle?.counts.observations));
+  els.bundleSummary.innerHTML = summaryMarkup(ready, bundle);
+  els.blockers.innerHTML = bundle ? blockerMarkup(bundle.blockers) : "";
+}
+
+function summaryMarkup(ready, bundle) {
+  if (!ready) {
+    return `<p class="intake-hint">${escapeHtml(state.schemaError
+      ?? "Loading the Gameplan contracts. Nothing can be exported until they are here to validate against.")}</p>`;
+  }
+  if (!bundle) return '<p class="intake-hint">Nothing staged.</p>';
+  const { observations, requests, blocked } = bundle.counts;
+  const parts = [
+    `<strong>${observations}</strong> observation${observations === 1 ? "" : "s"}`,
+    `<strong>${requests}</strong> identity request${requests === 1 ? "" : "s"}`,
+  ];
+  if (blocked) parts.push(`<strong>${blocked}</strong> blocked`);
+  return `<p class="intake-hint">${parts.join(" \u00b7 ")}. Only a resolved identity with a registered source and a
+    real observation clock crosses the boundary; everything else leaves as a search request.</p>`;
+}
+
+// Blockers are grouped by cause: forty rows failing the same contract rule are
+// one problem with forty names, not forty problems.
+function blockerMarkup(blockers) {
+  if (!blockers.length) return "";
+  const groups = new Map();
+  for (const entry of blockers) {
+    const group = groups.get(entry.code) ?? { ...entry, names: [] };
+    if (entry.name) group.names.push(entry.name);
+    groups.set(entry.code, group);
+  }
+  return [...groups.values()].map((group) => {
+    const shown = group.names.slice(0, 6).join(", ");
+    const rest = group.names.length > 6 ? ` and ${group.names.length - 6} more` : "";
+    return `<div class="intake-blocker">
+      <div class="intake-blocker-head">
+        <span class="intake-tag review">${escapeHtml(group.field)}</span>
+        <span class="intake-blocker-count">${group.names.length || 1}</span>
+      </div>
+      <p class="intake-blocker-message">${escapeHtml(group.message)}</p>
+      <p class="intake-blocker-remedy">${escapeHtml(group.remedy)}</p>
+      ${group.names.length ? `<p class="intake-blocker-names">${escapeHtml(shown + rest)}</p>` : ""}
+    </div>`;
+  }).join("");
 }
 
 function renderMeters() {
@@ -689,18 +746,16 @@ function renderMeters() {
   els.countSources.textContent = state.sources.length;
   els.countCandidates.textContent = tally.total;
   els.countResolved.textContent = tally.resolved;
-  els.countContract.textContent = tally.resolved;
   els.stages[0].classList.toggle("is-live", state.sources.length > 0);
   els.stages[1].classList.toggle("is-live", tally.total > 0);
   els.stages[2].classList.toggle("is-live", tally.resolved + tally.review > 0);
-  els.stages[3].classList.toggle("is-live", tally.resolved > 0);
 }
 
 function render() {
   renderMeters();
   renderSources();
   renderRows();
-  renderPayload();
+  renderBundle();
 }
 
 // What each extracted name turns into on its way out of the paste box. The
@@ -807,38 +862,64 @@ function extractFromPaste() {
   dissolvePaste(text, found);
 }
 
-function renderFavorites() {
-  // Derived from the manifest rather than hand-listed, so the shortcuts stay
-  // true as the manifest grows.
-  const groups = [{ label: "Full manifest", players: index.players }];
-  for (const position of ["QB", "RB", "WR", "TE"]) {
-    const players = index.players.filter((player) => player.position === position);
-    if (players.length) groups.push({ label: position, players });
-  }
-  els.favorites.innerHTML = groups.map((group, i) =>
-    `<button type="button" class="intake-chip" data-favorite="${i}">${escapeHtml(group.label)}<span class="intake-n">${group.players.length}</span></button>`
-  ).join("");
-  return groups;
-}
-
-function copyPayload() {
-  const text = JSON.stringify(buildPayload(), null, 2);
-  navigator.clipboard?.writeText(text).then(
-    () => announce("Payload copied to the clipboard."),
-    () => announce("Copy was blocked. Select the payload and copy it manually.")
-  );
-}
-
-function downloadPayload() {
-  const blob = new Blob([JSON.stringify(buildPayload(), null, 2)], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
+// The single place a file is handed to the analyst. A data: URI keeps this
+// free of Blob construction and object-URL lifecycle -- nothing binary is
+// materialised, and there is no handle to leak.
+function saveFile(filename, text, mime = "application/json") {
   const link = document.createElement("a");
-  link.href = url;
-  link.download = `pro-scout-intake-${new Date().toISOString().slice(0, 10)}.json`;
+  link.href = `data:${mime};charset=utf-8,${encodeURIComponent(text)}`;
+  link.download = filename;
   document.body.append(link);
   link.click();
   link.remove();
-  URL.revokeObjectURL(url);
+  announce(`${filename} saved.`);
+}
+
+function exportManifest() {
+  const bundle = state.bundle;
+  if (!bundle?.manifest) return;
+  saveFile(`${bundle.manifest.batch_id}.manifest.json`, `${JSON.stringify(bundle.manifest, null, 2)}\n`);
+}
+
+function exportData() {
+  const bundle = state.bundle;
+  if (!bundle?.manifest) return;
+  saveFile(bundle.manifest.data_file, bundle.jsonl, "application/x-ndjson");
+}
+
+function exportRequests() {
+  const bundle = state.bundle;
+  if (!bundle?.requests.length) return;
+  const document_ = buildRequestsDocument({
+    requests: bundle.requests,
+    batchId: state.batchId,
+    knownAt: state.assembledAt,
+  });
+  saveFile(`${state.batchId}.identity-requests.json`, `${JSON.stringify(document_, null, 2)}\n`);
+}
+
+// The contracts are fetched rather than compiled in, so the page validates
+// against the same vendored files the repo can audit against upstream.
+async function loadSchemas() {
+  const paths = {
+    playerObservation: "./contracts/gameplan/player_observation.schema.json",
+    batchManifest: "./contracts/gameplan/batch_manifest.schema.json",
+    identityReferenceFacts: "./contracts/gameplan/facts/identity_reference.schema.json",
+    depthChartFacts: "./contracts/gameplan/facts/depth_chart.schema.json",
+  };
+  try {
+    const entries = await Promise.all(Object.entries(paths).map(async ([key, path]) => {
+      const response = await fetch(path);
+      if (!response.ok) throw new Error(`${path} responded ${response.status}`);
+      return [key, await response.json()];
+    }));
+    state.schemas = Object.fromEntries(entries);
+    state.schemaError = null;
+  } catch (error) {
+    state.schemas = null;
+    state.schemaError = `The Gameplan contracts could not be loaded (${error.message}), so nothing can be validated or exported.`;
+  }
+  render();
 }
 
 const isActive = () => !els.panel.hidden;
@@ -852,17 +933,18 @@ export function initIntake(manifests) {
     picker: document.querySelector("#intake-filepicker"),
     paste: document.querySelector("#intake-paste"),
     url: document.querySelector("#intake-url"),
-    favorites: document.querySelector("#intake-favorites"),
     sourceList: document.querySelector("#intake-sources"),
     sourceCount: document.querySelector("#intake-source-count"),
     table: document.querySelector("#intake-table"),
     tbody: document.querySelector("#intake-tbody"),
     empty: document.querySelector("#intake-empty"),
     filters: document.querySelector("#intake-filters"),
-    payload: document.querySelector("#intake-payload"),
-    payloadNote: document.querySelector("#intake-payload-note"),
-    copyJson: document.querySelector("#intake-copy"),
-    saveJson: document.querySelector("#intake-save"),
+    manifest: document.querySelector("#intake-manifest"),
+    bundleSummary: document.querySelector("#intake-bundle-summary"),
+    blockers: document.querySelector("#intake-blockers"),
+    saveManifest: document.querySelector("#intake-save-manifest"),
+    saveData: document.querySelector("#intake-save-data"),
+    saveRequests: document.querySelector("#intake-save-requests"),
     veil: document.querySelector("#intake-veil"),
     live: document.querySelector("#intake-live"),
     countSources: document.querySelector("#intake-count-sources"),
@@ -878,7 +960,7 @@ export function initIntake(manifests) {
   }
   els["filter-all"] = document.querySelector("#intake-filter-all");
 
-  const favorites = renderFavorites();
+  loadSchemas();
 
   els.dropzone.addEventListener("click", () => els.picker.click());
   els.picker.addEventListener("change", () => {
@@ -905,24 +987,11 @@ export function initIntake(manifests) {
     } catch {
       // Not a parseable URL; stage it verbatim and let the fetcher judge it.
     }
-    addSource({ kind: "url", label, bytes: null, mode: "deferred_upstream", note: "queued for upstream fetch", href: raw });
+    addSource({ kind: "url", label, bytes: null, mode: "deferred_upstream",
+                note: "queued for upstream fetch", href: raw });
     els.url.value = "";
     render();
     announce("URL staged for the upstream fetcher.");
-  });
-
-  els.favorites.addEventListener("click", (event) => {
-    const button = event.target.closest("[data-favorite]");
-    if (!button) return;
-    const group = favorites[Number(button.dataset.favorite)];
-    const source = addSource({ kind: "curated", label: `${group.label} (curated)`, bytes: null, mode: "in_browser" });
-    let added = 0;
-    for (const player of group.players) {
-      if (addCandidate(player.name, { position: player.position, team: player.team_id }, source)) added += 1;
-    }
-    source.extracted += added;
-    render();
-    announce(`${group.label}: ${added} name${added === 1 ? "" : "s"} loaded.`);
   });
 
   els.sourceList.addEventListener("click", (event) => {
@@ -965,12 +1034,15 @@ export function initIntake(manifests) {
   document.querySelector("#intake-clear-batch").addEventListener("click", () => {
     state.rows = [];
     state.sources = [];
+    state.batchId = null;
+    state.assembledAt = null;
     render();
     announce("Batch cleared.");
   });
 
-  els.copyJson.addEventListener("click", copyPayload);
-  els.saveJson.addEventListener("click", downloadPayload);
+  els.saveManifest.addEventListener("click", exportManifest);
+  els.saveData.addEventListener("click", exportData);
+  els.saveRequests.addEventListener("click", exportRequests);
 
   // Dropping anywhere on the canvas works, not just on the drop target -- but
   // only while the intake view is the one on screen.

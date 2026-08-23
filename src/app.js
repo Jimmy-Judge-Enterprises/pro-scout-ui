@@ -1,4 +1,5 @@
 import { escapeHtml } from "./escape.js";
+import { intakeIssueUrl } from "./contract.js";
 import { initIntake } from "./intake.js";
 
 const state = {
@@ -203,20 +204,8 @@ function setView(view) {
 }
 
 // ------------------------------------------------------------- intake ---
-// The public page never holds a token and never calls an API. It builds a
-// prefilled GitHub issue URL against the private repo; GitHub authenticates
-// the submitter with their own session and performs the write.
-const INTAKE_REPO = "Jimmy-Judge-Enterprises/pro-scout";
-const INTAKE_TEMPLATE = "player-intake.yml";
-
-function intakeUrl({ name, team, position, notes }) {
-  const params = new URLSearchParams({ template: INTAKE_TEMPLATE, title: `[intake] ${name}` });
-  params.set("player_name", name);
-  if (team) params.set("team_hint", team);
-  if (position) params.set("position_hint", position);
-  if (notes) params.set("notes", notes);
-  return `https://github.com/${INTAKE_REPO}/issues/new?${params}`;
-}
+// One player at a time. The canvas handles batches; both routes build the same
+// prefilled issue, so the URL is built in one place.
 
 els.captureForm?.addEventListener("submit", (event) => {
   event.preventDefault();
@@ -225,10 +214,10 @@ els.captureForm?.addEventListener("submit", (event) => {
     els.captureName.focus();
     return;
   }
-  const url = intakeUrl({
-    name,
-    team: els.captureTeam.value.trim(),
-    position: els.capturePosition.value.trim(),
+  const url = intakeIssueUrl({
+    player_name: name,
+    team_hint: els.captureTeam.value.trim(),
+    position_hint: els.capturePosition.value.trim(),
     notes: els.captureNotes.value.trim(),
   });
   const opened = window.open(url, "_blank", "noopener");
