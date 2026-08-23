@@ -1,3 +1,5 @@
+import { resolveTeamAlias } from "./team-aliases.mjs";
+
 const state = {
   view: "teams",
   selectedId: null,
@@ -36,6 +38,17 @@ function getEntities() {
   const entities = state.manifests[state.view] ?? [];
   const q = state.query.trim().toLowerCase();
   if (!q) return entities;
+
+  // Team aliasing: "arizona", "cards", "az" etc. all mean the canonical
+  // team_id used in the manifest (e.g. "ARI"). Resolved once per query, not
+  // per entity, then matched directly against team_id -- this augments the
+  // existing whole-record substring search below rather than replacing it,
+  // so non-team queries are unaffected.
+  const aliasedTeamId = resolveTeamAlias(q);
+  if (aliasedTeamId) {
+    return entities.filter((item) => (item.team_id ?? "").toUpperCase() === aliasedTeamId);
+  }
+
   return entities.filter((item) => JSON.stringify(item).toLowerCase().includes(q));
 }
 
