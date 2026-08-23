@@ -504,8 +504,76 @@ const state = {
   // manifest an export writes.
   batchId: null, assembledAt: null,
   schemas: null, schemaError: null,
-  bundle: null,
+  bundle: null, restored: null,
 };
+
+const STORE_KEY = "pro-scout-ui.intake-batch";
+const STORE_VERSION = 1;
+
+// A per-viewer convenience, and nothing more: the batch someone is part-way
+// through survives a reload of their own browser. It is never shared, never
+// authoritative, and never a source. An identity is stored as its id and
+// rehydrated from the current index, so a match cannot outlive the manifest
+// that proved it -- if the index no longer holds it, the row goes back to
+// being a question rather than carrying a claim nothing supports.
+function saveBatch() {
+  try {
+    if (!state.rows.length && !state.sources.length) {
+      localStorage.removeItem(STORE_KEY);
+      return;
+    }
+    localStorage.setItem(STORE_KEY, JSON.stringify({
+      version: STORE_VERSION,
+      batch_id: state.batchId,
+      assembled_at: state.assembledAt,
+      sources: state.sources,
+      rows: state.rows.map((row) => ({
+        ...row,
+        match: row.match?.gsis_id ?? null,
+        candidates: row.candidates.map((candidate) => candidate.gsis_id),
+      })),
+    }));
+  } catch {
+    // Storage blocked, unavailable or full. The batch is still on the page, so
+    // only the convenience is lost and there is nothing to report.
+  }
+}
+
+const ordinalOf = (id, prefix) => Number(String(id ?? "").replace(prefix, "")) || 0;
+
+function restoreBatch() {
+  let saved = null;
+  try {
+    saved = JSON.parse(localStorage.getItem(STORE_KEY) ?? "null");
+  } catch {
+    return;
+  }
+  if (!saved || saved.version !== STORE_VERSION) return;
+
+  const byGsis = new Map(index.players.map((player) => [player.gsis_id, player]));
+  state.batchId = saved.batch_id ?? null;
+  state.assembledAt = saved.assembled_at ?? null;
+  state.sources = Array.isArray(saved.sources) ? saved.sources : [];
+  state.rows = (Array.isArray(saved.rows) ? saved.rows : []).map((row) => {
+    const match = row.match ? byGsis.get(row.match) ?? null : null;
+    const candidates = (row.candidates ?? []).map((id) => byGsis.get(id)).filter(Boolean);
+    const withdrawn = row.match && !match;
+    return {
+      ...row,
+      match,
+      candidates,
+      status: withdrawn ? (candidates.length ? "review" : "pending") : row.status,
+      confirmed: withdrawn ? false : row.confirmed,
+    };
+  });
+  // Sequences continue past the highest id seen, not past the count: a batch
+  // that had rows removed would otherwise mint an id it already used.
+  state.rowSeq = Math.max(0, ...state.rows.map((row) => ordinalOf(row.id, "row-")));
+  state.sourceSeq = Math.max(0, ...state.sources.map((source) => ordinalOf(source.id, "src-")));
+  if (state.rows.length || state.sources.length) {
+    state.restored = { count: state.rows.length, at: state.assembledAt };
+  }
+}
 
 const els = {};
 let dragDepth = 0;
@@ -548,10 +616,13 @@ function addCandidate(name, hints, source, fields = null) {
     return false;
   }
 
-  state.batchId ??= newBatchId();
+  state.batchId ??= newId();
   state.assembledAt ??= new Date().toISOString();
   state.rows.push({
     id: `row-${++state.rowSeq}`,
+    // Minted with the row and stable for its life, so reordering or removing
+    // other rows never renumbers a request that has already left the canvas.
+    request_id: newId(),
     captured: name,
     key,
     occurrences: 1,
@@ -652,6 +723,13 @@ function statusTag(row) {
   }
   if (row.status === "review") return '<span class="intake-tag review">Needs review</span>';
   return '<span class="intake-tag upstream">Upstream</span>';
+}
+
+// The upstream issue form has no field for a request reference, so it rides in
+// notes on its own line, kept clearly apart from whatever the analyst wrote.
+function issueNotes(row) {
+  return [row.analyst_note, `pro-scout-ui request ${row.request_id} \u00b7 batch ${state.batchId}`]
+    .filter(Boolean).join("\n\n");
 }
 
 const BASIS_LABELS = { document: "file hint", analyst: "your hint", observed: "hint" };
@@ -760,7 +838,7 @@ function renderRows() {
           player_name: row.captured,
           team_hint: row.hints.teamBasis === "document" ? null : row.hints.team,
           position_hint: row.hints.position,
-          notes: row.analyst_note,
+          notes: issueNotes(row),
         }))}" target="_blank" rel="noopener" title="Open an identity search request for ${escapeHtml(row.captured)}">\u2197</a>`}
         <button type="button" class="intake-icon" data-action="drop" data-row="${row.id}" aria-label="Remove ${escapeHtml(row.captured)}">\u2715</button>
       </td>
@@ -802,7 +880,9 @@ function renderSources() {
 // SHA-256 of the data file, when the runtime offers it. A page served without
 // a secure context has no subtle crypto; the manifest contract permits a null
 // hash, and reporting null is honest where inventing one would not be.
-function newBatchId() {
+// Identifiers, not evidence. randomUUID needs a secure context; random bytes
+// serve the same purpose where it is absent.
+function newId() {
   if (crypto.randomUUID) return crypto.randomUUID();
   const bytes = crypto.getRandomValues(new Uint8Array(16));
   return [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
@@ -905,11 +985,35 @@ function renderMeters() {
   els.stages[2].classList.toggle("is-live", tally.resolved + tally.review > 0);
 }
 
+function clearBatch() {
+  Object.assign(state, {
+    rows: [], sources: [], batchId: null, assembledAt: null, editingRow: null, restored: null,
+  });
+  render();
+  announce("Batch cleared.");
+}
+
+function renderRestored() {
+  els.restored.hidden = !state.restored;
+  if (!state.restored) return;
+  const when = Date.parse(state.restored.at ?? "");
+  const staged = Number.isNaN(when) ? "" : ` staged ${new Date(when).toLocaleString()}`;
+  const { count } = state.restored;
+  els.restored.innerHTML = `<span>Picked up where this browser left off: <strong>${count}</strong>
+    candidate${count === 1 ? "" : "s"}${escapeHtml(staged)}. Nothing was re-read from any source.</span>
+    <span class="intake-restored-actions">
+      <button type="button" class="intake-button intake-button-sm" data-action="keep">Keep</button>
+      <button type="button" class="intake-button intake-button-sm" data-action="discard">Discard</button>
+    </span>`;
+}
+
 function render() {
   renderMeters();
+  renderRestored();
   renderSources();
   renderRows();
   renderBundle();
+  saveBatch();
 }
 
 // What each extracted name turns into on its way out of the paste box. The
@@ -1092,6 +1196,7 @@ export function initIntake(manifests) {
     table: document.querySelector("#intake-table"),
     tbody: document.querySelector("#intake-tbody"),
     empty: document.querySelector("#intake-empty"),
+    restored: document.querySelector("#intake-restored"),
     filters: document.querySelector("#intake-filters"),
     manifest: document.querySelector("#intake-manifest"),
     bundleSummary: document.querySelector("#intake-bundle-summary"),
@@ -1114,7 +1219,18 @@ export function initIntake(manifests) {
   }
   els["filter-all"] = document.querySelector("#intake-filter-all");
 
+  restoreBatch();
   loadSchemas();
+
+  els.restored.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-action]");
+    if (!button) return;
+    if (button.dataset.action === "discard") clearBatch();
+    else {
+      state.restored = null;
+      renderRestored();
+    }
+  });
 
   els.dropzone.addEventListener("click", () => els.picker.click());
   els.picker.addEventListener("change", () => {
@@ -1214,15 +1330,7 @@ export function initIntake(manifests) {
     renderRows();
   });
 
-  document.querySelector("#intake-clear-batch").addEventListener("click", () => {
-    state.rows = [];
-    state.sources = [];
-    state.batchId = null;
-    state.assembledAt = null;
-    state.editingRow = null;
-    render();
-    announce("Batch cleared.");
-  });
+  document.querySelector("#intake-clear-batch").addEventListener("click", clearBatch);
 
   els.saveManifest.addEventListener("click", exportManifest);
   els.saveData.addEventListener("click", exportData);

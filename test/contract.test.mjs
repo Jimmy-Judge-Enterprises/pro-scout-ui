@@ -41,6 +41,7 @@ const codes = (bundle) => bundle.blockers.map((entry) => entry.code);
 function row(player, overrides = {}) {
   return {
     id: `row-${player.gsis_id}`,
+    request_id: `req-${player.gsis_id}`,
     captured: player.name,
     status: "resolved",
     match: player,
@@ -108,7 +109,7 @@ const bundle = (rows, sources) =>
 // --- identity questions never enter the observation feed -------------------
 {
   const unresolved = {
-    id: "row-unresolved", captured: alpha.name, status: "pending", match: null,
+    id: "row-unresolved", request_id: "req-unresolved", captured: alpha.name, status: "pending", match: null,
     hints: { position: "RB", positionBasis: "observed", team: alpha.team_id, teamBasis: "document" },
     sourceIds: ["src-1"], occurrences: 2, candidates: [], analyst_note: null,
   };
@@ -116,9 +117,12 @@ const bundle = (rows, sources) =>
   check("unresolved yields no observation", out.observations.length === 0);
   check("unresolved yields a request", out.requests.length === 1);
   check("the request carries the hint basis", out.requests[0].team_hint_basis === "document");
+  check("the request is identified", out.requests[0].request_id === "req-unresolved");
+  check("and names its batch", out.requests[0].batch_id === BATCH_ID);
   check("the request states it is not an assertion", /not an assertion/.test(out.requests[0].acknowledgement));
   const document = buildRequestsDocument({ requests: out.requests, batchId: BATCH_ID, knownAt: KNOWN_AT });
   check("requests document counts its requests", document.request_count === 1);
+  check("the document names the join key", /request\.request_id/.test(document.reconcile_via), document.reconcile_via);
 }
 
 // --- a document-scope team is never asserted about a player ----------------
@@ -177,7 +181,7 @@ const bundle = (rows, sources) =>
 // --- what an unresolved row carries to the search --------------------------
 {
   const asked = {
-    id: "row-asked", captured: alpha.name, status: "pending", match: null,
+    id: "row-asked", request_id: "req-asked", captured: alpha.name, status: "pending", match: null,
     hints: { position: "RB", positionBasis: "analyst", team: "KC", teamBasis: "analyst" },
     sourceIds: ["src-1"], occurrences: 1, candidates: [],
     analyst_note: "two players share this surname",

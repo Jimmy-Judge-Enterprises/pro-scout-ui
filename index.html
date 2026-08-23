@@ -202,6 +202,9 @@
                     <button type="button" class="intake-chip is-destructive" id="intake-clear-batch">Clear batch</button>
                   </div>
                 </div>
+                <!-- A restored batch is not a fresh read. Say so, and offer the
+                     way out, rather than letting stale rows pass for new ones. -->
+                <div class="intake-restored" id="intake-restored" hidden></div>
                 <div class="intake-table-wrap">
                   <table id="intake-table" class="intake-table" hidden>
                     <thead>

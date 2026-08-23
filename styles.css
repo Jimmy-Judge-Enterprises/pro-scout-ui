@@ -273,3 +273,10 @@ h1 { margin: 2px 0 0; font-size: 22px; }
 .intake-hint-actions { display: flex; gap: 9px; align-items: center; flex-wrap: wrap; }
 .intake-hint-actions button { cursor: pointer; }
 @media (max-width: 760px) { .intake-hint-fields { grid-template-columns: 1fr; } }
+
+/* A batch picked back up from this browser. It is a convenience, not a source,
+   so it announces itself rather than passing for a fresh read. */
+.intake-restored { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; padding: 10px 16px; border-bottom: 1px solid #223148; background: #101a2b; font-size: 12.5px; color: #8fa4bf; }
+.intake-restored[hidden] { display: none; }
+.intake-restored strong { color: #edf3fb; }
+.intake-restored-actions { display: flex; gap: 7px; }

@@ -153,8 +153,13 @@ function buildObservation(row, source, { knownAt, batchId, schemas }) {
 // An unresolved name leaves as a search request carrying only what the source
 // said. Hints discriminate between candidates; they never establish identity,
 // which is why the basis of a team hint travels with it.
-function buildRequest(row, source) {
+function buildRequest(row, source, batchId) {
   const request = {
+    // The join key. A search that quotes this back -- the ledger's request
+    // object accepts additional properties -- makes an exported batch
+    // reconcilable against the searches that eventually ran for it.
+    request_id: row.request_id,
+    batch_id: batchId,
     player_name: row.captured,
     team_hint: row.hints.team ?? null,
     team_hint_basis: row.hints.teamBasis ?? null,
@@ -205,7 +210,7 @@ export async function buildBundle({ rows, sources, schemas, knownAt, batchId, di
     const source = candidates.find((entry) => sourceIdFor(entry)) ?? candidates[0] ?? null;
 
     if (row.status !== "resolved") {
-      requests.push(buildRequest(row, source));
+      requests.push(buildRequest(row, source, batchId));
       continue;
     }
     const built = buildObservation(row, source, { knownAt, batchId, schemas });
@@ -267,6 +272,9 @@ export function buildRequestsDocument({ requests, batchId, knownAt }) {
     producer_version: PRODUCER_VERSION,
     request_count: requests.length,
     acknowledgement: ACKNOWLEDGEMENT,
+    // Where these ids are expected to reappear, so a reader knows how to close
+    // the loop without being told out of band.
+    reconcile_via: "identity-search-ledger event request.request_id",
     requests,
   };
 }
