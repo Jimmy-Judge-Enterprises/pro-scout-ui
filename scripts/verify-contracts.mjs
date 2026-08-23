@@ -58,3 +58,10 @@ if (failures.length) {
 }
 
 console.log(`contracts: ${counted} vendored file(s) match ${vendored.upstream_repo}@${vendored.upstream_commit.slice(0, 7)}`);
+
+// Surface the later confirmations too, so a passing run says which upstream
+// state the bytes were last checked against and not merely that they still
+// hash to what this file records.
+for (const check of vendored.verified_unchanged_at ?? []) {
+  console.log(`           unchanged at gameplan@${check.gameplan_commit.slice(0, 7)} (checked ${check.checked_on})`);
+}

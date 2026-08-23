@@ -4,6 +4,16 @@
   "upstream_subtree": "contracts/gameplan",
   "upstream_commit": "1d123f1acbc7c4708d2d0d54813bdce64423f9ad",
   "gameplan_commit": "b93b13c581105a731e69018623550a8b8a130022",
+  "verified_unchanged_at": [
+    {
+      "gameplan_commit": "2c7c8dd6e317dbd1158cc9bb8d75790e1d075c0a",
+      "gameplan_subject": "Fix boundary gate drift; add 50+ scoring splits and stats sources",
+      "gameplan_file_count": 33,
+      "checked_on": "2026-08-23",
+      "checked_against": "pro-scout working tree, unpushed",
+      "result": "every vendored file byte-identical; no boundary rule affected"
+    }
+  ],
   "file_count": 5,
   "files": {
     "contracts/gameplan/player_observation.schema.json": "b22651ca8198a75115f5db454652c9f3a9290de6a8cda3485448031faf664f5a",
