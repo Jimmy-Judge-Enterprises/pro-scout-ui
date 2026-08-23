@@ -1,0 +1,28 @@
+name: Checks
+
+# The canvas validates every record it emits against the vendored Gameplan
+# contracts, so both halves of that promise are checked here: that the contracts
+# are the ones they claim to be, and that the boundary rules built on them still
+# hold. Bare node, no dependencies, matching how pro-scout runs its own checks.
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Vendored contracts are unmodified
+        run: node scripts/verify-contracts.mjs
+      - name: Boundary behaviour holds
+        run: node test/contract.test.mjs
