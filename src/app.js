@@ -1,5 +1,6 @@
 import { resolveTeamAlias } from "./team-aliases.mjs";
 import { filterByPresence, playerRow } from "./presence.mjs";
+import { analyseTeam, byDivision } from "./team-analysis.mjs";
 import { escapeHtml } from "./escape.js";
 import { intakeIssueUrl } from "./contract.js";
 import { initIntake } from "./intake.js";
@@ -154,18 +155,38 @@ function renderList() {
   els.search.placeholder = state.view === "teams" ? "Search teams" : "Search players";
   els.list.innerHTML = "";
 
-  for (const item of entities) {
-    const id = entityId(item);
-    const button = document.createElement("button");
-    button.className = `entity-row${state.selectedId === id ? " is-selected" : ""}`;
-    button.type = "button";
-    button.innerHTML = `
-      <span class="status-dot ${freshness(item.captured_at)}" aria-hidden="true"></span>
-      <span>${escapeHtml(entityLabel(item))}</span>
-      <span class="entity-code">${escapeHtml(entityCode(item))}</span>
-    `;
-    button.addEventListener("click", () => selectEntity(item));
-    els.list.appendChild(button);
+  // Teams are grouped into their divisions, which is how anyone looking for a club
+  // actually looks for one -- nobody scans an alphabetical list of 32 to find the
+  // AFC East. Players stay flat: 1,159 rows in eight groups would be eight long
+  // lists rather than a navigable index.
+  const groups = state.view === "teams"
+    ? byDivision(entities)
+    : [{ label: null, teams: entities }];
+
+  for (const group of groups) {
+    if (group.label) {
+      const heading = document.createElement("div");
+      heading.className = "division-heading";
+      heading.textContent = group.label;
+      els.list.appendChild(heading);
+    }
+    for (const item of group.teams) {
+      const id = entityId(item);
+      const button = document.createElement("button");
+      button.className = `entity-row${state.selectedId === id ? " is-selected" : ""}`;
+      button.type = "button";
+      // Teams have no capture timestamp, so their dot reads the provider's own
+      // source date instead. Passing captured_at would paint all 32 grey and say
+      // nothing, when six distinct source dates are on file.
+      const dotAt = state.view === "teams" ? (item.source_updated_at ?? null) : item.captured_at;
+      button.innerHTML = `
+        <span class="status-dot ${freshness(dotAt)}" aria-hidden="true"></span>
+        <span>${escapeHtml(entityLabel(item))}</span>
+        <span class="entity-code">${escapeHtml(entityCode(item))}</span>
+      `;
+      button.addEventListener("click", () => selectEntity(item));
+      els.list.appendChild(button);
+    }
   }
 
   if (!entities.length) {
@@ -180,41 +201,101 @@ function selectEntity(item) {
   renderDetail(item);
 }
 
+// Two sections, labelled, and never interleaved.
+//
+// The FACT half is what the manifest carries: captured, provenanced, and shown
+// exactly as stored. The ANALYSIS half is computed here from those facts every
+// time the panel draws, and is stored nowhere.
+//
+// They are kept visually apart on purpose. This repository's whole discipline is
+// that an observation and a judgement about it are different kinds of thing, and
+// a console that renders "3-4 base" beside "shared with 21 of 32" in the same
+// card teaches the reader that both arrived the same way. One is on file. The
+// other was worked out a moment ago and would change if another team were
+// recaptured.
+function renderTeamRecord(item) {
+  const league = state.manifests.teams ?? [];
+  const analysis = analyseTeam(item, league);
+
+  const staff = card("Staff", {
+    "General manager": item.general_manager,
+    "Head coach": item.head_coach,
+    "Offensive coordinator": item.offensive_coordinator,
+    "Defensive coordinator": item.defensive_coordinator,
+    "Special teams": item.special_teams_coordinator,
+  });
+
+  const scheme = card("Scheme and personnel", {
+    "Base front": item.base_front,
+    "Primary personnel": item.personnel_code
+      ? `${item.personnel_code}${item.personnel_label ? ` — ${item.personnel_label}` : ""}`
+      : null,
+    "Usage": Number.isFinite(item.personnel_usage_pct) ? `${item.personnel_usage_pct}%` : null,
+    "Advanced rates": item.advanced_rates_status,
+    "Red zone / goal line": item.red_zone_status,
+  });
+
+  const provenance = card("Provenance", {
+    "Capture status": item.capture_status,
+    "Depth chart": item.depth_chart_provider,
+    "Source updated": item.source_updated_at ?? "no source date on file",
+    // Not "unknown": the record genuinely carries no capture timestamp, and
+    // saying so is different from failing to find one.
+    "Captured": item.captured_at ?? "the record carries no capture time",
+    "Source": item.source_provider,
+    "Record URI": item.record_uri,
+  });
+
+  const record = card("Record", {
+    "Team ID": item.team_id,
+    "Division": item.division_label ?? [item.conference, item.division].filter(Boolean).join(" "),
+    "Season": item.season,
+    "Contract": item.contract_version,
+    "Snapshot": item.snapshot_id,
+  });
+
+  const findings = analysis.findings.map((finding) => `
+    <div class="finding">
+      <div class="finding-heading">${escapeHtml(finding.heading)}</div>
+      <p class="finding-body">${escapeHtml(finding.body)}</p>
+      ${finding.note ? `<p class="finding-note">${escapeHtml(finding.note)}</p>` : ""}
+    </div>
+  `).join("");
+
+  return `
+    <header class="record-header">
+      <div>
+        <div class="record-kicker">NFL Team State</div>
+        <h2 class="record-title">${escapeHtml(entityLabel(item))}</h2>
+        <p class="record-subtitle">${escapeHtml(item.team_id ?? "")} · ${escapeHtml(item.division_label ?? "")} · ${escapeHtml(String(item.season ?? ""))}</p>
+      </div>
+      <div class="status-pill ${escapeHtml(item.capture_color ?? "")}">${escapeHtml(item.capture_status ?? "unknown")}</div>
+    </header>
+
+    <section class="pane pane-fact">
+      <div class="pane-banner">
+        <span class="pane-label">Facts</span>
+        <span class="pane-caption">cached — as captured, from the team-state record</span>
+      </div>
+      <div class="section-grid">${record}${staff}${scheme}${provenance}</div>
+    </section>
+
+    <section class="pane pane-analysis">
+      <div class="pane-banner">
+        <span class="pane-label">Analysis</span>
+        <span class="pane-caption">generated — derived from the facts above at render time, stored nowhere</span>
+      </div>
+      <div class="findings">${findings}</div>
+    </section>
+  `;
+}
+
 function renderDetail(item) {
   els.empty.hidden = true;
   els.content.hidden = false;
 
   if (state.view === "teams") {
-    els.content.innerHTML = `
-      <header class="record-header">
-        <div>
-          <div class="record-kicker">NFL Team State</div>
-          <h2 class="record-title">${escapeHtml(entityLabel(item))}</h2>
-          <p class="record-subtitle">${escapeHtml(item.team_id ?? "")} · ${escapeHtml(String(item.season ?? ""))}</p>
-        </div>
-        <div class="status-pill">${escapeHtml(item.capture_status ?? "unknown")}</div>
-      </header>
-      <div class="section-grid">
-        ${card("Record", {
-          "Team ID": item.team_id,
-          "Conference": [item.conference, item.division].filter(Boolean).join(" "),
-          "Season": item.season,
-          "Contract": item.contract_version,
-          "Snapshot": item.snapshot_id,
-        })}
-        ${card("Staff", {
-          "Head coach": item.head_coach,
-          "Offensive coordinator": item.offensive_coordinator,
-        })}
-        ${card("Provenance", {
-          "Capture status": item.capture_status,
-          "Captured": item.captured_at ?? "not recorded upstream",
-          "Freshness": freshnessLabel(item.captured_at),
-          "Source": item.source_provider,
-          "Record URI": item.record_uri,
-        })}
-      </div>
-    `;
+    els.content.innerHTML = renderTeamRecord(item);
   } else {
     els.content.innerHTML = `
       <header class="record-header">

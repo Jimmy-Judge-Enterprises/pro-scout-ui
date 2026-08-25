@@ -29,3 +29,6 @@ jobs:
 
       - name: Player table reads the manifest it is given
         run: node test/player-table.test.mjs
+
+      - name: Team analysis derives and does not judge
+        run: node test/team-analysis.test.mjs
