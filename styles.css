@@ -307,3 +307,42 @@ h1 { margin: 2px 0 0; font-size: 22px; }
   .presence-filter { width: 100%; }
   .player-table { font-size: 12px; }
 }
+
+/* --- team browser: division list, and the fact/analysis split --- */
+.division-heading {
+  margin: 14px 0 4px; padding: 0 10px;
+  color: #7890ad; font-size: 10px; font-weight: 700;
+  letter-spacing: .14em; text-transform: uppercase;
+}
+.entity-list .division-heading:first-child { margin-top: 2px; }
+
+/* The two halves are deliberately not interchangeable at a glance. Facts sit on
+   the panel ground; analysis is inset and tinted, so a reader can tell which
+   half he is reading without consulting the label. */
+.pane { margin-top: 18px; }
+.pane-banner { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; padding-bottom: 8px; border-bottom: 1px solid #223148; }
+.pane-label { font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: #dce7f4; }
+.pane-caption { font-size: 11px; color: #7890ad; }
+.pane-fact .pane-label { color: #9dc0f0; }
+.pane-analysis .pane-label { color: #d8c08a; }
+
+.pane-analysis .findings {
+  margin-top: 12px; padding: 4px 16px 12px;
+  border: 1px solid #2f3a4e; border-left: 3px solid #b99a4e;
+  border-radius: 10px; background: #131c2b;
+}
+.finding { padding: 12px 0; border-bottom: 1px solid #1d2a3f; }
+.finding:last-child { border-bottom: 0; }
+.finding-heading { font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #d8c08a; }
+.finding-body { margin: 5px 0 0; color: #dce7f4; font-size: 13px; line-height: 1.5; }
+.finding-note { margin: 5px 0 0; color: #8fa4bf; font-size: 12px; line-height: 1.5; font-style: italic; }
+
+/* The capture vocabulary is green / gold / red; the pill wears it. */
+.status-pill.green { border-color: #2f6f4b; color: #7fd6a4; }
+.status-pill.gold  { border-color: #7a6428; color: #e2c574; }
+.status-pill.red   { border-color: #7a3030; color: #f0a0a0; }
+
+@media (max-width: 720px) {
+  .pane-banner { flex-direction: column; gap: 2px; }
+  .pane-analysis .findings { padding: 4px 12px 10px; }
+}
