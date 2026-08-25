@@ -78,6 +78,9 @@ No dependencies and no test framework, the same way pro-scout runs its own:
 ```sh
 node scripts/verify-contracts.mjs   # vendored contracts are byte-identical
 node test/contract.test.mjs         # the boundary rules built on them still hold
+node test/player-table.test.mjs     # held and available partition one row shape
+node test/team-analysis.test.mjs    # every finding derived, none of them a judgement
+node test/serve.test.mjs            # the preview server stays inside its root
 ```
 
 Both run in CI on every push. The tests fabricate no identities — every `gsis_id`
@@ -85,9 +88,21 @@ and name they use is read from this repo's own player manifest.
 
 ## Running locally
 
-Any static server works; the page fetches its manifests and contracts by relative
-path, so `file://` will not do.
+The page fetches its manifests and contracts by relative path, so `file://` will
+not do — it needs to be served.
 
 ```sh
-python3 -m http.server 8000
+node scripts/serve.mjs        # http://127.0.0.1:8788
+PORT=9000 node scripts/serve.mjs
 ```
+
+Any static server works, `python3 -m http.server 8000` included. The reason to
+prefer this one is that it serves the page under the same Content-Security-Policy
+the published site should hold, so a violation — an inline script, a stylesheet
+pulled from a CDN — shows up here instead of after it is public. It also sends
+`no-store`, so a reload after an edit shows the edit, and it runs on node like
+everything else here.
+
+It binds to loopback and refuses anything resolving outside the repository,
+symlinks included: the private Gameplan checkout sits beside this one on disk.
+`test/serve.test.mjs` asserts that rather than trusting it.
