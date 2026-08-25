@@ -36,6 +36,11 @@
 // scale, and it belongs at the bottom either way -- a block of blanks at the top
 // of a descending sort reads as a finding when it is an absence.
 export const SORTABLE = Object.freeze({
+  // Alphabetical, not depth-chart order. QB/RB/WR/TE/K is how a football person
+  // reads a roster, but it is a convention this module would have to assert, and
+  // an unlisted position would have nowhere to go in it. Alphabetical is what a
+  // text column does everywhere else on the page and needs no table of its own.
+  position: { label: "Pos", field: "position", kind: "text", absentLast: true },
   team: { label: "Team", field: "team_id", kind: "text", absentLast: true },
   lastPlayed: { label: "Last played", field: "last_played_season", kind: "season", absentLast: false },
 });

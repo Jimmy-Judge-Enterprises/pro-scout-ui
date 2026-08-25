@@ -32,7 +32,7 @@ assert.ok(withSeason.length > 0 && withoutSeason.length > 0,
 // The manifest's own order stays generic on purpose. A reader sorting is a
 // different act -- but the columns he can sort by must still be facts, never a
 // value this system computed about a player.
-assert.deepEqual(Object.keys(SORTABLE).sort(), ["lastPlayed", "team"]);
+assert.deepEqual(Object.keys(SORTABLE).sort(), ["lastPlayed", "position", "team"]);
 for (const spec of Object.values(SORTABLE)) {
   for (const forbidden of ["rank", "score", "vor", "value", "keeper", "tier", "priority"]) {
     assert.ok(!spec.field.includes(forbidden), `${spec.field} is a judgement, not a fact`);
@@ -91,6 +91,29 @@ for (const spec of Object.values(SORTABLE)) {
   assert.equal(sortRows(mixed, "team", "asc").at(-1).name, "Blank");
   assert.equal(sortRows(mixed, "team", "desc").at(-1).name, "Blank",
     "an absent club led the descending sort instead of trailing it");
+}
+
+// --- position ---------------------------------------------------------------------------
+
+{
+  const asc = sortRows(players, "position", "asc");
+  const codes = asc.map((p) => p.position).filter(Boolean);
+  assert.deepEqual(codes, [...codes].sort((a, b) => a.localeCompare(b)),
+    "positions are not in alphabetical order");
+  assert.equal(asc.length, players.length, "sorting by position lost or duplicated rows");
+
+  // Alphabetical, deliberately, not depth-chart order. If that ever changes it
+  // should change because someone decided to, not because a comparator drifted.
+  const positions = [...new Set(codes)];
+  assert.ok(positions.length > 3, `only ${positions.length} positions; the sort is unexercised`);
+  assert.equal(asc.find((p) => p.position).position, [...positions].sort()[0]);
+
+  // A row with no position sorts to the bottom either way, like an absent club.
+  const mixed = [
+    { name: "W", position: "WR" }, { name: "Blank", position: null }, { name: "Q", position: "QB" },
+  ];
+  assert.equal(sortRows(mixed, "position", "asc").at(-1).name, "Blank");
+  assert.equal(sortRows(mixed, "position", "desc").at(-1).name, "Blank");
 }
 
 // --- ties are stable ----------------------------------------------------------------------
