@@ -33,5 +33,8 @@ jobs:
       - name: Team analysis derives and does not judge
         run: node test/team-analysis.test.mjs
 
+      - name: Table sort handles absent values
+        run: node test/table-sort.test.mjs
+
       - name: Preview server stays inside its root
         run: node test/serve.test.mjs
