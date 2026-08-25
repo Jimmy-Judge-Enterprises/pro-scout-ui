@@ -26,3 +26,6 @@ jobs:
         run: node scripts/verify-contracts.mjs
       - name: Boundary behaviour holds
         run: node test/contract.test.mjs
+
+      - name: Player table reads the manifest it is given
+        run: node test/player-table.test.mjs
