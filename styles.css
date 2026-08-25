@@ -443,3 +443,43 @@ h1 { margin: 2px 0 0; font-size: 22px; }
   .hero-card { grid-template-columns: auto 1fr; }
   .ras-box { grid-column: 1 / -1; }
 }
+/* --- the table gets its own scroll, so its header can stay put --- */
+/* `.table-scroll` already carried overflow-x: auto, and in CSS a `visible` on the
+   other axis computes to `auto` beside it -- so it was a scroll container all
+   along, with unbounded height, and never scrolled vertically. The sticky header
+   was anchored to it rather than to the panel that actually scrolled, which is
+   why it never stuck. Bounding the height here is what makes sticky mean
+   something. */
+.detail-panel.shows-table { overflow: hidden; display: flex; flex-direction: column; }
+/* :not([hidden]) is load-bearing. `display: flex` on a selector this specific
+   outranks the browser's own [hidden] rule, so without it the table would show
+   through whenever the class and the hidden attribute disagreed. */
+.detail-panel.shows-table #player-table-panel:not([hidden]) { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.detail-panel.shows-table .table-scroll { flex: 1; min-height: 0; overflow: auto; }
+/* The rounded corner clips a sticky header mid-scroll, so the corner goes on the
+   box and the header squares off against it. */
+.player-table thead th:first-child { border-top-left-radius: 11px; }
+.player-table thead th:last-child { border-top-right-radius: 11px; }
+
+.table-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.expand-button {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 8px 13px; border: 1px solid #2b3d57; border-radius: 9px;
+  background: #111d30; color: #9db0c7; font-size: 12px; cursor: pointer; white-space: nowrap;
+}
+.expand-button:hover { background: #16243a; color: #dce7f4; }
+.expand-button:focus-visible { outline: 2px solid #7698bd; outline-offset: 2px; }
+.expand-button[aria-pressed="true"] { background: #e7eef8; border-color: #e7eef8; color: #0b1422; font-weight: 700; }
+.expand-mark::before { content: "\2921\2922"; letter-spacing: -2px; }
+.expand-button[aria-pressed="true"] .expand-mark::before { content: "\2922\2921"; }
+
+/* --- full screen --- */
+/* The title bar and the sidebar are hidden rather than shrunk. Both are
+   navigation, and navigation earns no height while a reader is scanning rows --
+   which is the whole complaint this answers. */
+.app-shell.is-fullscreen .topbar { display: none; }
+.app-shell.is-fullscreen .sidebar { display: none; }
+.app-shell.is-fullscreen .workspace { grid-template-columns: minmax(0, 1fr); height: 100vh; }
+.app-shell.is-fullscreen .detail-panel { padding: 16px 20px; }
+.app-shell.is-fullscreen .capture-lede { margin: 6px 0 10px; }
+.app-shell.is-fullscreen .record-title { font-size: 20px; }
