@@ -62,6 +62,22 @@ h1 { margin: 2px 0 0; font-size: 22px; }
 .definition-list dt { color: #738aa5; }
 .definition-list dd { margin: 0; color: #d8e4f1; }
 
+/* Master-detail: the two panes scroll independently.
+
+   They did not, and that is what stranded the detail. `.workspace` set only a
+   min-height and nothing had an overflow, so the whole document scrolled as one
+   piece: you scrolled deep into an 849-row table, clicked a row, the table was
+   replaced by a short panel, and the viewport stayed where it was. The record was
+   rendered correctly and simply above you.
+
+   Only above the stacking breakpoint. Below it the sidebar sits on top of the
+   detail in one column, where two independent scrollers would be worse than the
+   page scroll it already has. */
+@media (min-width: 761px) {
+  .workspace { height: calc(100vh - 84px); }
+  .sidebar, .detail-panel { overflow-y: auto; }
+}
+
 @media (max-width: 760px) {
   .topbar { grid-template-columns: 1fr auto; }
   .entity-toggle { grid-row: 2; grid-column: 1 / -1; justify-self: stretch; }

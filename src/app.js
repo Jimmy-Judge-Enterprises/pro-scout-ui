@@ -33,6 +33,7 @@ const els = {
   capturePosition: document.querySelector("#capture-position"),
   captureNotes: document.querySelector("#capture-notes"),
   captureHint: document.querySelector("#capture-hint"),
+  detailPanel: document.querySelector(".detail-panel"),
   presenceFilter: document.querySelector("#presence-filter"),
   presenceButtons: [...document.querySelectorAll("[data-presence]")],
   tablePanel: document.querySelector("#player-table-panel"),
@@ -199,6 +200,7 @@ function selectEntity(item) {
   if (els.tablePanel) els.tablePanel.hidden = true;
   renderList();
   renderDetail(item);
+  showDetailFromTop();
 }
 
 // Two sections, labelled, and never interleaved.
@@ -290,6 +292,21 @@ function renderTeamRecord(item) {
   `;
 }
 
+// A newly chosen record starts at its own beginning.
+//
+// Two scrollers to answer for, because the layout has two shapes. Above the
+// stacking breakpoint the detail pane scrolls itself, so its scrollTop is what
+// stranded the reader. Below it the pane is not a scroller at all and the page is,
+// so resetting only the pane would fix the wide layout and leave the narrow one
+// exactly as it was. Both are reset; whichever is not scrolling is already 0 and
+// the assignment costs nothing.
+function showDetailFromTop() {
+  if (els.detailPanel) els.detailPanel.scrollTop = 0;
+  // Not smooth: this is a jump to a different record, not travel within one, and
+  // animating it makes the panel look like it is still showing the last one.
+  window.scrollTo(0, 0);
+}
+
 function renderDetail(item) {
   els.empty.hidden = true;
   els.content.hidden = false;
@@ -360,6 +377,7 @@ function setView(view) {
   els.tablePanel.hidden = !table;
   els.empty.hidden = !browsing || table;
   if (browsing) renderList();
+  showDetailFromTop();
 }
 
 // ------------------------------------------------------------- intake ---
@@ -396,6 +414,7 @@ els.presenceButtons.forEach((button) => button.addEventListener("click", () => {
   els.content.hidden = true;
   els.tablePanel.hidden = false;
   renderList();
+  showDetailFromTop();
 }));
 
 els.toggleButtons.forEach((button) => button.addEventListener("click", () => setView(button.dataset.view)));
