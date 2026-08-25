@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gameplan.local/schemas/ingestion/facts/depth_chart.schema.json",
+  "title": "Depth Chart Facts",
+  "description": "Source-observed team depth-chart placement. Preserve source ordering and role labels rather than normalizing away distinctions.",
+  "type": "object",
+  "required": ["team", "position_group", "depth_order"],
+  "properties": {
+    "team": {"type": "string", "minLength": 2, "maxLength": 4},
+    "position_group": {"type": "string", "minLength": 1},
+    "role": {"type": ["string", "null"], "description": "Source role label such as X, Z, SLOT, RB, 3DRB, TE, etc."},
+    "depth_order": {"type": "integer", "minimum": 1, "maximum": 20},
+    "roster_status": {"type": ["string", "null"]},
+    "starter_flag": {"type": ["boolean", "null"]},
+    "package": {"type": ["string", "null"], "description": "Optional personnel/package context when the source distinguishes it."},
+    "notes": {"type": ["string", "null"]}
+  },
+  "additionalProperties": false
+}

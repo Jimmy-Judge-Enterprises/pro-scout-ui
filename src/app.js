@@ -1,4 +1,7 @@
 import { resolveTeamAlias } from "./team-aliases.mjs";
+import { escapeHtml } from "./escape.js";
+import { intakeIssueUrl } from "./contract.js";
+import { initIntake } from "./intake.js";
 
 const state = {
   view: "teams",
@@ -16,7 +19,9 @@ const els = {
   content: document.querySelector("#detail-content"),
   toggleButtons: [...document.querySelectorAll("[data-view]")],
   sidebar: document.querySelector(".sidebar"),
+  workspace: document.querySelector(".workspace"),
   capture: document.querySelector("#capture-panel"),
+  intake: document.querySelector("#intake-panel"),
   captureForm: document.querySelector("#capture-panel"),
   captureName: document.querySelector("#capture-name"),
   captureTeam: document.querySelector("#capture-team"),
@@ -44,6 +49,11 @@ function getEntities() {
   // per entity, then matched directly against team_id -- this augments the
   // existing whole-record substring search below rather than replacing it,
   // so non-team queries are unaffected.
+  //
+  // Deliberately not restricted to the teams view. Player records carry team_id
+  // too, so "houston" in the player view finds the Texans' players, which is how
+  // someone actually looks for a player whose name they are unsure of. A query
+  // that is not a team alias resolves to null and never reaches this branch.
   const aliasedTeamId = resolveTeamAlias(q);
   if (aliasedTeamId) {
     return entities.filter((item) => (item.team_id ?? "").toUpperCase() === aliasedTeamId);
@@ -198,29 +208,21 @@ function setView(view) {
     button.setAttribute("aria-pressed", String(active));
   });
 
-  const capturing = view === "capture";
-  els.sidebar.hidden = capturing;
-  els.capture.hidden = !capturing;
+  // Teams and Players browse the manifest; Capture and Intake replace the
+  // browser entirely, so the sidebar and its empty state go with it.
+  const browsing = view === "teams" || view === "players";
+  els.sidebar.hidden = !browsing;
+  els.workspace.classList.toggle("is-solo", !browsing);
+  els.capture.hidden = view !== "capture";
+  els.intake.hidden = view !== "intake";
   els.content.hidden = true;
-  els.empty.hidden = capturing;
-  if (!capturing) renderList();
+  els.empty.hidden = !browsing;
+  if (browsing) renderList();
 }
 
 // ------------------------------------------------------------- intake ---
-// The public page never holds a token and never calls an API. It builds a
-// prefilled GitHub issue URL against the private repo; GitHub authenticates
-// the submitter with their own session and performs the write.
-const INTAKE_REPO = "Jimmy-Judge-Enterprises/pro-scout";
-const INTAKE_TEMPLATE = "player-intake.yml";
-
-function intakeUrl({ name, team, position, notes }) {
-  const params = new URLSearchParams({ template: INTAKE_TEMPLATE, title: `[intake] ${name}` });
-  params.set("player_name", name);
-  if (team) params.set("team_hint", team);
-  if (position) params.set("position_hint", position);
-  if (notes) params.set("notes", notes);
-  return `https://github.com/${INTAKE_REPO}/issues/new?${params}`;
-}
+// One player at a time. The canvas handles batches; both routes build the same
+// prefilled issue, so the URL is built in one place.
 
 els.captureForm?.addEventListener("submit", (event) => {
   event.preventDefault();
@@ -229,10 +231,10 @@ els.captureForm?.addEventListener("submit", (event) => {
     els.captureName.focus();
     return;
   }
-  const url = intakeUrl({
-    name,
-    team: els.captureTeam.value.trim(),
-    position: els.capturePosition.value.trim(),
+  const url = intakeIssueUrl({
+    player_name: name,
+    team_hint: els.captureTeam.value.trim(),
+    position_hint: els.capturePosition.value.trim(),
     notes: els.captureNotes.value.trim(),
   });
   const opened = window.open(url, "_blank", "noopener");
@@ -240,12 +242,6 @@ els.captureForm?.addEventListener("submit", (event) => {
     ? "Intake request opened on GitHub. Submit it there to queue the ingest."
     : "Popup blocked. Open the request manually: " + url;
 });
-
-function escapeHtml(value = "") {
-  return String(value).replace(/[&<>'"]/g, (char) => ({
-    "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;",
-  })[char]);
-}
 
 els.toggleButtons.forEach((button) => button.addEventListener("click", () => setView(button.dataset.view)));
 els.search.addEventListener("input", (event) => {
@@ -255,4 +251,11 @@ els.search.addEventListener("input", (event) => {
 
 loadManifests()
   .catch((error) => console.error("Manifest load failed", error))
-  .finally(() => setView("teams"));
+  .finally(() => {
+    // The canvas resolves names against the same manifests the browser lists,
+    // so it is wired only once they have settled. If the load failed the index
+    // is empty and every name becomes an upstream resolution request, which is
+    // the correct answer with no index to check against.
+    initIntake(state.manifests);
+    setView("teams");
+  });

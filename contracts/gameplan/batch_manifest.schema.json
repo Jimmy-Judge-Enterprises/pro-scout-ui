@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gameplan.local/schemas/ingestion/batch_manifest.schema.json",
+  "title": "Pro-Scout Player Observation Batch Manifest",
+  "description": "Optional transport metadata accompanying a JSONL player-observation feed. It never replaces per-line required fields.",
+  "type": "object",
+  "required": ["schema_version", "batch_id", "source_id", "generated_at", "record_count", "data_file"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "batch_id": {"type": "string", "minLength": 1},
+    "source_id": {"type": "string", "minLength": 1},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "record_count": {"type": "integer", "minimum": 0},
+    "data_file": {"type": "string", "pattern": "\\.jsonl$"},
+    "sha256": {"type": ["string", "null"], "pattern": "^[A-Fa-f0-9]{64}$"},
+    "producer_version": {"type": ["string", "null"]}
+  },
+  "additionalProperties": false
+}
