@@ -36,5 +36,8 @@ jobs:
       - name: Table sort handles absent values
         run: node test/table-sort.test.mjs
 
+      - name: Prospect gauges are computed, never invented
+        run: node test/anatomy-panel.test.mjs
+
       - name: Preview server stays inside its root
         run: node test/serve.test.mjs
