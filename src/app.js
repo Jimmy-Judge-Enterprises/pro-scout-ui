@@ -1,4 +1,5 @@
 import { resolveTeamAlias } from "./team-aliases.mjs";
+import { filterByPresence, playerRow } from "./presence.mjs";
 import { escapeHtml } from "./escape.js";
 import { intakeIssueUrl } from "./contract.js";
 import { initIntake } from "./intake.js";
@@ -7,6 +8,9 @@ const state = {
   view: "teams",
   selectedId: null,
   query: "",
+  // Which half of the player manifest to show. Defaults to what pro-scout
+  // actually holds: "available" is a queue to work through, not the roster.
+  presence: "held",
   manifests: { teams: [], players: [] },
 };
 
@@ -28,6 +32,12 @@ const els = {
   capturePosition: document.querySelector("#capture-position"),
   captureNotes: document.querySelector("#capture-notes"),
   captureHint: document.querySelector("#capture-hint"),
+  presenceFilter: document.querySelector("#presence-filter"),
+  presenceButtons: [...document.querySelectorAll("[data-presence]")],
+  tablePanel: document.querySelector("#player-table-panel"),
+  tableTitle: document.querySelector("#player-table-title"),
+  tableLede: document.querySelector("#player-table-lede"),
+  tableBody: document.querySelector("#player-table-body"),
 };
 
 async function loadManifests() {
@@ -40,7 +50,14 @@ async function loadManifests() {
 }
 
 function getEntities() {
-  const entities = state.manifests[state.view] ?? [];
+  let entities = state.manifests[state.view] ?? [];
+
+  // Presence narrows before the query does, so the count beside the search box
+  // reports matches within the chosen half rather than across the whole file.
+  if (state.view === "players") {
+    entities = filterByPresence(entities, state.presence);
+  }
+
   const q = state.query.trim().toLowerCase();
   if (!q) return entities;
 
@@ -93,8 +110,45 @@ function freshnessLabel(capturedAt) {
   return { recent: "Recent", stale: "Stale", unavailable: "No capture date" }[freshness(capturedAt)];
 }
 
+// The read-only table. Every column is a public NFL fact; nothing here ranks,
+// scores or orders by league judgement, because WHICH players appear and in what
+// order is itself information on a public page. Sort is the manifest's own --
+// alphabetical for available rows, capture order for held ones.
+const PRESENCE_COPY = {
+  held: ["In pro-scout", "Players with a captured record."],
+  available: ["Available to add", "Known to the identity index and not yet captured. Nothing here is persisted; the list is derived each build."],
+  all: ["All players", "Captured records and addable players together."],
+};
+
+function renderPlayerTable(entities) {
+  const [title, lede] = PRESENCE_COPY[state.presence] ?? PRESENCE_COPY.held;
+  els.tableTitle.textContent = title;
+  els.tableLede.textContent = `${entities.length} player${entities.length === 1 ? "" : "s"}. ${lede}`;
+  els.tableBody.innerHTML = "";
+
+  for (const item of entities) {
+    const cells = playerRow(item);
+    const row = document.createElement("tr");
+    row.className = "player-row";
+    row.innerHTML = `
+      <th scope="row" class="player-name">${escapeHtml(cells.name)}</th>
+      <td>${escapeHtml(cells.position)}</td>
+      <td>${escapeHtml(cells.team)}${cells.moved
+        ? ' <span class="moved-flag" title="Changed club since his last played season">moved</span>'
+        : ""}</td>
+      <td class="numeric">${cells.lastPlayed ? escapeHtml(cells.lastPlayed) : "&mdash;"}</td>
+      <td>${cells.hasCapture
+        ? escapeHtml(freshnessLabel(item.captured_at))
+        : '<span class="presence-tag">not captured</span>'}</td>
+    `;
+    row.addEventListener("click", () => selectEntity(item));
+    els.tableBody.appendChild(row);
+  }
+}
+
 function renderList() {
   const entities = getEntities();
+  if (state.view === "players") renderPlayerTable(entities);
   els.listTitle.textContent = state.view === "teams" ? "Teams" : "Players";
   els.count.textContent = String(entities.length);
   els.search.placeholder = state.view === "teams" ? "Search teams" : "Search players";
@@ -121,6 +175,7 @@ function renderList() {
 
 function selectEntity(item) {
   state.selectedId = entityId(item);
+  if (els.tablePanel) els.tablePanel.hidden = true;
   renderList();
   renderDetail(item);
 }
@@ -216,7 +271,13 @@ function setView(view) {
   els.capture.hidden = view !== "capture";
   els.intake.hidden = view !== "intake";
   els.content.hidden = true;
-  els.empty.hidden = !browsing;
+
+  // The players view opens on the table rather than an empty panel: the whole
+  // point of it is to be readable without choosing anything first.
+  const table = view === "players";
+  els.presenceFilter.hidden = !table;
+  els.tablePanel.hidden = !table;
+  els.empty.hidden = !browsing || table;
   if (browsing) renderList();
 }
 
@@ -242,6 +303,19 @@ els.captureForm?.addEventListener("submit", (event) => {
     ? "Intake request opened on GitHub. Submit it there to queue the ingest."
     : "Popup blocked. Open the request manually: " + url;
 });
+
+els.presenceButtons.forEach((button) => button.addEventListener("click", () => {
+  state.presence = button.dataset.presence;
+  state.selectedId = null;
+  els.presenceButtons.forEach((other) => {
+    const active = other === button;
+    other.classList.toggle("is-active", active);
+    other.setAttribute("aria-pressed", String(active));
+  });
+  els.content.hidden = true;
+  els.tablePanel.hidden = false;
+  renderList();
+}));
 
 els.toggleButtons.forEach((button) => button.addEventListener("click", () => setView(button.dataset.view)));
 els.search.addEventListener("input", (event) => {
