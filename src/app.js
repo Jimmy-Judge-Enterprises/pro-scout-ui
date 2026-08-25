@@ -1,6 +1,7 @@
 import { resolveTeamAlias } from "./team-aliases.mjs";
 import { filterByPresence, playerRow } from "./presence.mjs";
 import { analyseTeam, byDivision } from "./team-analysis.mjs";
+import { gaugesFor, heroFor, productionFor } from "./anatomy-panel.mjs";
 import { SORTABLE, ariaSort, loadSort, nextDirection, saveSort, sortRows } from "./table-sort.mjs";
 import { escapeHtml } from "./escape.js";
 import { intakeIssueUrl } from "./contract.js";
@@ -358,7 +359,87 @@ function renderDetail(item) {
   if (state.view === "teams") {
     els.content.innerHTML = renderTeamRecord(item);
   } else {
-    els.content.innerHTML = `
+    els.content.innerHTML = renderPlayerRecord(item);
+  }
+}
+
+// The rookie profile, mined from the ANATOMY design and rebuilt on real numbers.
+//
+// The hero card, the athletic gauges and the production tiles are that design's
+// three sections. What is not carried over is how it filled the bars: it used a
+// supplied percentile if it had one and a literal 65, 78, 70 or 50 otherwise. A
+// filled bar is a claim about where a man sits among his peers, and invented it is
+// the most confident-looking thing on the page.
+//
+// Here the percentile is computed against the players on the page -- same position
+// group, same class -- and where the cohort is too small there is no bar, only the
+// value and a line saying so.
+function renderAnatomy(item) {
+  const hero = heroFor(item);
+  if (!hero) return "";
+  const gauges = gaugesFor(item, state.manifests.players);
+  const production = productionFor(item);
+
+  const badges = hero.badges.map((badge) => `
+    <span class="badge">${escapeHtml(badge.label)}<b>${escapeHtml(String(badge.value))}</b></span>
+  `).join("");
+
+  const rasBox = hero.ras === null ? "" : `
+    <div class="ras-box">
+      <div class="ras-value">${escapeHtml(String(hero.ras))}</div>
+      <div class="ras-label">RAS</div>
+    </div>`;
+
+  const gaugeCards = gauges.map((gauge) => `
+    <div class="gauge-card">
+      <div class="gauge-header">
+        <span class="gauge-title">${escapeHtml(gauge.label)}</span>
+        <span class="gauge-value">${escapeHtml(gauge.display)}</span>
+      </div>
+      ${gauge.percentile === null ? "" : `
+        <div class="bar-track">
+          <div class="bar-fill ${escapeHtml(gauge.tone)}" style="width:${gauge.percentile}%"></div>
+        </div>`}
+      <div class="gauge-basis">${escapeHtml(gauge.basis)}</div>
+    </div>
+  `).join("");
+
+  const tiles = production.map((tile) => `
+    <div class="stat-tile">
+      <div class="stat-label">${escapeHtml(tile.label)}</div>
+      <div class="stat-value">${escapeHtml(String(tile.value))}</div>
+    </div>
+  `).join("");
+
+  return `
+    <section class="pane pane-fact">
+      <div class="pane-banner">
+        <span class="pane-label">Prospect profile</span>
+        <span class="pane-caption">cached &mdash; the evidence that exists before he plays a snap</span>
+      </div>
+
+      <div class="hero-card">
+        <div class="avatar">${escapeHtml(hero.initials)}</div>
+        <div class="hero-info">
+          <div class="hero-badges">${badges}</div>
+          ${hero.sourceSlot ? `<div class="hero-note">Workbook slot ${escapeHtml(hero.sourceSlot)} &mdash; that second number is the pick within the round, not the overall selection.</div>` : ""}
+        </div>
+        ${rasBox}
+      </div>
+
+      ${gauges.length ? `
+        <div class="section-title">Athletic profile</div>
+        <div class="gauge-grid">${gaugeCards}</div>` : ""}
+
+      ${production.length ? `
+        <div class="section-title">College production</div>
+        <div class="stats-matrix">${tiles}</div>` : ""}
+    </section>
+  `;
+}
+
+function renderPlayerRecord(item) {
+  return `
       <header class="record-header">
         <div>
           <div class="record-kicker">Player Evaluation</div>
@@ -382,8 +463,8 @@ function renderDetail(item) {
           "Record URI": item.record_uri,
         })}
       </div>
+      ${renderAnatomy(item)}
     `;
-  }
 }
 
 function card(title, values) {
