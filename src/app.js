@@ -1,6 +1,7 @@
 import { resolveTeamAlias } from "./team-aliases.mjs";
 import { filterByPresence, playerRow } from "./presence.mjs";
 import { analyseTeam, byDivision } from "./team-analysis.mjs";
+import { SORTABLE, ariaSort, loadSort, nextDirection, saveSort, sortRows } from "./table-sort.mjs";
 import { escapeHtml } from "./escape.js";
 import { intakeIssueUrl } from "./contract.js";
 import { initIntake } from "./intake.js";
@@ -12,6 +13,9 @@ const state = {
   // Which half of the player manifest to show. Defaults to what pro-scout
   // actually holds: "available" is a queue to work through, not the roster.
   presence: "held",
+  // Which column the reader last sorted by, restored from his own browser. Null
+  // means the manifest's own order, which is what an unvisited page shows.
+  sort: { column: null, direction: "asc" },
   manifests: { teams: [], players: [] },
 };
 
@@ -40,7 +44,20 @@ const els = {
   tableTitle: document.querySelector("#player-table-title"),
   tableLede: document.querySelector("#player-table-lede"),
   tableBody: document.querySelector("#player-table-body"),
+  sortButtons: [...document.querySelectorAll("[data-sort]")],
 };
+
+// Reading localStorage can THROW, not merely return null -- a private window, a
+// browser set to block site data, an embedded context. Wrapped so the page draws
+// either way; a viewer who blocks storage gets a working table that does not
+// remember, which is the correct outcome and not an error worth telling him about.
+function storage() {
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+}
 
 async function loadManifests() {
   const [teams, players] = await Promise.all([
@@ -122,13 +139,40 @@ const PRESENCE_COPY = {
   all: ["All players", "Captured records and addable players together."],
 };
 
+function renderSortHeaders() {
+  for (const button of els.sortButtons) {
+    const column = button.dataset.sort;
+    const active = column === state.sort.column;
+    button.classList.toggle("is-sorted", active);
+    button.dataset.direction = active ? state.sort.direction : "";
+    // aria-sort belongs on the header cell, not the button inside it.
+    button.closest("th")?.setAttribute(
+      "aria-sort", ariaSort(column, state.sort.column, state.sort.direction),
+    );
+    const label = SORTABLE[column]?.label ?? column;
+    button.setAttribute(
+      "aria-label",
+      active
+        ? `${label}, sorted ${state.sort.direction === "desc" ? "descending" : "ascending"}. Sort the other way.`
+        : `${label}. Sort by this column.`,
+    );
+  }
+}
+
 function renderPlayerTable(entities) {
   const [title, lede] = PRESENCE_COPY[state.presence] ?? PRESENCE_COPY.held;
   els.tableTitle.textContent = title;
   els.tableLede.textContent = `${entities.length} player${entities.length === 1 ? "" : "s"}. ${lede}`;
   els.tableBody.innerHTML = "";
+  renderSortHeaders();
 
-  for (const item of entities) {
+  // Sorted here rather than in getEntities: the sidebar list and the search count
+  // read that, and a column order chosen for the table has no meaning in either.
+  const rows = state.sort.column
+    ? sortRows(entities, state.sort.column, state.sort.direction)
+    : entities;
+
+  for (const item of rows) {
     const cells = playerRow(item);
     const row = document.createElement("tr");
     row.className = "player-row";
@@ -417,6 +461,16 @@ els.presenceButtons.forEach((button) => button.addEventListener("click", () => {
   showDetailFromTop();
 }));
 
+els.sortButtons.forEach((button) => button.addEventListener("click", () => {
+  const column = button.dataset.sort;
+  const direction = nextDirection(state.sort.column, column, state.sort.direction);
+  state.sort = { column, direction };
+  saveSort(storage(), column, direction);
+  // The table redraws; the chosen record, if any, is left alone. Re-sorting is a
+  // question about the list and says nothing about what is open beside it.
+  renderList();
+}));
+
 els.toggleButtons.forEach((button) => button.addEventListener("click", () => setView(button.dataset.view)));
 els.search.addEventListener("input", (event) => {
   state.query = event.target.value;
@@ -431,5 +485,9 @@ loadManifests()
     // is empty and every name becomes an upstream resolution request, which is
     // the correct answer with no index to check against.
     initIntake(state.manifests);
+    // Restored before the first draw, so the table is never painted in one order
+    // and then rearranged under the reader.
+    const remembered = loadSort(storage());
+    if (remembered) state.sort = remembered;
     setView("teams");
   });

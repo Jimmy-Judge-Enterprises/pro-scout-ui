@@ -60,11 +60,27 @@
           <div class="table-scroll">
             <table class="player-table">
               <thead>
+                <!-- Team and Last played sort on click. They are buttons rather
+                     than click handlers on the cell so they are reachable by
+                     keyboard and announced as controls; aria-sort is kept in step
+                     by the renderer. -->
                 <tr>
                   <th scope="col">Player</th>
-                  <th scope="col">Pos</th>
-                  <th scope="col">Team</th>
-                  <th scope="col">Last played</th>
+                  <th scope="col" id="sort-position" aria-sort="none">
+                    <button type="button" class="sort-button" data-sort="position">
+                      Pos<span class="sort-mark" aria-hidden="true"></span>
+                    </button>
+                  </th>
+                  <th scope="col" id="sort-team" aria-sort="none">
+                    <button type="button" class="sort-button" data-sort="team">
+                      Team<span class="sort-mark" aria-hidden="true"></span>
+                    </button>
+                  </th>
+                  <th scope="col" id="sort-lastPlayed" aria-sort="none">
+                    <button type="button" class="sort-button" data-sort="lastPlayed">
+                      Last played<span class="sort-mark" aria-hidden="true"></span>
+                    </button>
+                  </th>
                   <th scope="col">Captured</th>
                 </tr>
               </thead>

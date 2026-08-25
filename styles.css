@@ -362,3 +362,26 @@ h1 { margin: 2px 0 0; font-size: 22px; }
   .pane-banner { flex-direction: column; gap: 2px; }
   .pane-analysis .findings { padding: 4px 12px 10px; }
 }
+
+/* --- sortable columns --- */
+/* A button, not a click handler on the cell: it must be reachable by keyboard and
+   announced as a control. The header keeps its own look, so the affordance is the
+   pointer and the mark rather than a button that looks pasted into a table. */
+.sort-button {
+  display: inline-flex; align-items: center; gap: 6px;
+  margin: -4px -6px; padding: 4px 6px;
+  border: 0; border-radius: 6px; background: transparent;
+  color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit;
+  cursor: pointer;
+}
+.sort-button:hover { background: #16233a; color: #dce7f4; }
+.sort-button:focus-visible { outline: 2px solid #7698bd; outline-offset: 1px; }
+.sort-button.is-sorted { color: #dce7f4; }
+
+/* The mark shows direction only on the sorted column. A neutral glyph on every
+   header would say all five sort, and three of them do not. */
+.sort-mark { font-size: 9px; line-height: 1; opacity: 0; }
+.sort-button:hover .sort-mark { opacity: .45; }
+.sort-button.is-sorted .sort-mark { opacity: 1; color: #9dc0f0; }
+.sort-button .sort-mark::before { content: "\25B2"; }
+.sort-button[data-direction="desc"] .sort-mark::before { content: "\25BC"; }
