@@ -305,8 +305,13 @@ h1 { margin: 2px 0 0; font-size: 22px; }
 /* The table scrolls inside its own box. Letting it widen the page instead would
    push the sidebar off-screen on a narrow window. */
 .table-scroll { overflow-x: auto; margin-top: 14px; border: 1px solid #223148; border-radius: 12px; }
-.player-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-.player-table thead th { position: sticky; top: 0; background: #0d1727; color: #8fa4bf; text-align: left; font-size: 11px; letter-spacing: .09em; text-transform: uppercase; padding: 10px 12px; border-bottom: 1px solid #223148; }
+/* separate, NOT collapse. A collapsed border belongs to the table rather than
+   the cell, so it does not travel with a position:sticky header -- the header
+   stays put and its underline scrolls away, leaving rows sliding up against it
+   with nothing between them. The separator is an inset shadow for the same
+   reason: a shadow is painted with the element and a collapsed border is not. */
+.player-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; }
+.player-table thead th { position: sticky; top: 0; z-index: 1; background: #0d1727; color: #8fa4bf; text-align: left; font-size: 11px; letter-spacing: .09em; text-transform: uppercase; padding: 10px 12px; box-shadow: inset 0 -1px 0 #223148; }
 .player-table td, .player-table th[scope="row"] { padding: 9px 12px; border-bottom: 1px solid #18263c; color: #dce7f4; }
 .player-table tbody tr:last-child td, .player-table tbody tr:last-child th { border-bottom: 0; }
 .player-row { cursor: pointer; }
@@ -456,10 +461,6 @@ h1 { margin: 2px 0 0; font-size: 22px; }
    through whenever the class and the hidden attribute disagreed. */
 .detail-panel.shows-table #player-table-panel:not([hidden]) { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 .detail-panel.shows-table .table-scroll { flex: 1; min-height: 0; overflow: auto; }
-/* The rounded corner clips a sticky header mid-scroll, so the corner goes on the
-   box and the header squares off against it. */
-.player-table thead th:first-child { border-top-left-radius: 11px; }
-.player-table thead th:last-child { border-top-right-radius: 11px; }
 
 .table-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
 .expand-button {
