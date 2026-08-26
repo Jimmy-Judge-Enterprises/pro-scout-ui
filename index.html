@@ -54,8 +54,18 @@
         <!-- The read-only table. Shown in the players view until a row is chosen,
              so the default state is the whole roster rather than an empty panel. -->
         <div id="player-table-panel" hidden>
-          <div class="record-kicker">PLAYERS</div>
-          <h2 class="record-title" id="player-table-title">In pro-scout</h2>
+          <div class="table-heading">
+            <div>
+              <div class="record-kicker">PLAYERS</div>
+              <h2 class="record-title" id="player-table-title">In pro-scout</h2>
+            </div>
+            <!-- Expand drops the title bar and the sidebar. Neither earns its
+                 height while scanning 1,159 rows. Escape returns. -->
+            <button type="button" id="expand-table" class="expand-button" aria-pressed="false">
+              <span class="expand-mark" aria-hidden="true"></span>
+              <span id="expand-label">Expand</span>
+            </button>
+          </div>
           <p class="capture-lede" id="player-table-lede"></p>
           <div class="table-scroll">
             <table class="player-table">

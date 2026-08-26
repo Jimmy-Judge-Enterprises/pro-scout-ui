@@ -17,6 +17,10 @@ const state = {
   // Which column the reader last sorted by, restored from his own browser. Null
   // means the manifest's own order, which is what an unvisited page shows.
   sort: { column: null, direction: "asc" },
+  // Deliberately NOT remembered. A reader who leaves in full screen and returns
+  // to a page with no title bar and no sidebar has lost the way out, and the
+  // sort preference is worth restoring where this is not.
+  fullscreen: false,
   manifests: { teams: [], players: [] },
 };
 
@@ -46,6 +50,9 @@ const els = {
   tableLede: document.querySelector("#player-table-lede"),
   tableBody: document.querySelector("#player-table-body"),
   sortButtons: [...document.querySelectorAll("[data-sort]")],
+  shell: document.querySelector(".app-shell"),
+  expand: document.querySelector("#expand-table"),
+  expandLabel: document.querySelector("#expand-label"),
 };
 
 // Reading localStorage can THROW, not merely return null -- a private window, a
@@ -243,6 +250,7 @@ function renderList() {
 function selectEntity(item) {
   state.selectedId = entityId(item);
   if (els.tablePanel) els.tablePanel.hidden = true;
+  showsTable(false);
   renderList();
   renderDetail(item);
   showDetailFromTop();
@@ -345,6 +353,26 @@ function renderTeamRecord(item) {
 // so resetting only the pane would fix the wide layout and leave the narrow one
 // exactly as it was. Both are reset; whichever is not scrolling is already 0 and
 // the assignment costs nothing.
+// Whether the panel is currently showing the table rather than a record.
+//
+// The class does the real work: it hands the vertical scroll to the table box so
+// the sticky header has something to stick to. Without it the panel scrolls, the
+// table does not, and the header is anchored to a container that never moves --
+// which is why it had been scrolling out of sight since it was written.
+function showsTable(showing) {
+  els.detailPanel?.classList.toggle("shows-table", Boolean(showing));
+  // Full screen is only meaningful with the table up. Leaving it on while a
+  // single record is open would hide the navigation for no gain.
+  if (!showing && state.fullscreen) setFullscreen(false);
+}
+
+function setFullscreen(on) {
+  state.fullscreen = Boolean(on);
+  els.shell?.classList.toggle("is-fullscreen", state.fullscreen);
+  els.expand?.setAttribute("aria-pressed", String(state.fullscreen));
+  if (els.expandLabel) els.expandLabel.textContent = state.fullscreen ? "Exit full screen" : "Expand";
+}
+
 function showDetailFromTop() {
   if (els.detailPanel) els.detailPanel.scrollTop = 0;
   // Not smooth: this is a jump to a different record, not travel within one, and
@@ -500,6 +528,7 @@ function setView(view) {
   const table = view === "players";
   els.presenceFilter.hidden = !table;
   els.tablePanel.hidden = !table;
+  showsTable(table);
   els.empty.hidden = !browsing || table;
   if (browsing) renderList();
   showDetailFromTop();
@@ -538,9 +567,21 @@ els.presenceButtons.forEach((button) => button.addEventListener("click", () => {
   });
   els.content.hidden = true;
   els.tablePanel.hidden = false;
+  showsTable(true);
   renderList();
   showDetailFromTop();
 }));
+
+els.expand?.addEventListener("click", () => setFullscreen(!state.fullscreen));
+
+// Escape is the way out. A mode that hides its own navigation needs one that does
+// not depend on finding a button.
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && state.fullscreen) {
+    setFullscreen(false);
+    els.expand?.focus();
+  }
+});
 
 els.sortButtons.forEach((button) => button.addEventListener("click", () => {
   const column = button.dataset.sort;
