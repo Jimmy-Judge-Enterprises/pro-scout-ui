@@ -750,8 +750,12 @@ function statusTag(row) {
   return '<span class="intake-tag upstream">Upstream</span>';
 }
 
-// The upstream issue form has no field for a request reference, so it rides in
-// notes on its own line, kept clearly apart from whatever the analyst wrote.
+// The reference is sent as its own request_id field. GitHub silently drops a
+// prefill parameter for a field the template does not declare, so until the
+// upstream form carries one the reference also rides in notes -- losing it
+// would be worse than repeating it. Delete this function and the notes line
+// below once request_id is live on pro-scout's default branch; the field alone
+// then carries it.
 function issueNotes(row) {
   return [row.analyst_note, `pro-scout-ui request ${row.request_id} \u00b7 batch ${state.batchId}`]
     .filter(Boolean).join("\n\n");
@@ -863,6 +867,7 @@ function renderRows() {
           player_name: row.captured,
           team_hint: row.hints.teamBasis === "document" ? null : row.hints.team,
           position_hint: row.hints.position,
+          request_id: row.request_id,
           notes: issueNotes(row),
         }))}" target="_blank" rel="noopener" title="Open an identity search request for ${escapeHtml(row.captured)}">\u2197</a>`}
         <button type="button" class="intake-icon" data-action="drop" data-row="${row.id}" aria-label="Remove ${escapeHtml(row.captured)}">\u2715</button>
