@@ -26,3 +26,5 @@ jobs:
         run: node scripts/verify-contracts.mjs
       - name: Boundary behaviour holds
         run: node test/contract.test.mjs
+      - name: Search aliases point at real teams
+        run: node test/team-aliases.test.mjs

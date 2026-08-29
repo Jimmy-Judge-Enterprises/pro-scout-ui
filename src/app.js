@@ -1,3 +1,4 @@
+import { resolveTeamAlias } from "./team-aliases.mjs";
 import { escapeHtml } from "./escape.js";
 import { intakeIssueUrl } from "./contract.js";
 import { initIntake } from "./intake.js";
@@ -42,6 +43,12 @@ function getEntities() {
   const entities = state.manifests[state.view] ?? [];
   const q = state.query.trim().toLowerCase();
   if (!q) return entities;
+
+  const aliasedTeamId = resolveTeamAlias(q);
+  if (state.view === "teams" && aliasedTeamId) {
+    return entities.filter((item) => (item.team_id ?? "").toUpperCase() === aliasedTeamId);
+  }
+
   return entities.filter((item) => JSON.stringify(item).toLowerCase().includes(q));
 }
 
