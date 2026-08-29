@@ -21,19 +21,16 @@
 // list to nothing AND skips the substring fallback, so the search gets worse
 // rather than better.
 
-// Alternate club codes. The first three are vendored from pro-scout's
-// config/team-aliases.json, which is the authority and is hash-checked by
-// scripts/verify-contracts.mjs; the test asserts this table still agrees with
-// it. The rest are relocations, renames and provider spellings this repo has
-// met and upstream has not yet enumerated -- upstream's rule is "enumerate, do
-// not infer", so they are listed here rather than derived, and they are
-// candidates to contribute back.
-const IDENTITY_ALIASES = {
-  // vendored from pro-scout config/team-aliases.json
-  LA: "LAR",
-  JAC: "JAX",
-  ARZ: "ARI",
-  // additions owned by this repo
+// Alternate club codes this repo owns: relocations, renames and provider
+// spellings met here that upstream has not enumerated. Upstream's rule is
+// "enumerate, do not infer", so they are listed rather than derived, and they
+// are candidates to contribute back.
+//
+// The aliases pro-scout declares are NOT repeated here. They arrive from
+// contracts/pro-scout/team-aliases.json through adoptVendoredAliases, because a
+// value restated in two places is a value that can disagree with itself. The
+// test fails if any of them reappears below.
+const LOCAL_ALIASES = {
   AZ: "ARI",
   WSH: "WAS",
   WFT: "WAS",
@@ -90,14 +87,41 @@ const SEARCH_ALIASES = {
   WAS: ["washington", "commanders"],
 };
 
-// Built once at module load, not per keystroke.
+// The merged view: what this repo owns, plus whatever the vendored file adds.
+const identity = { ...LOCAL_ALIASES };
+
+// Rebuilt when the vendored file arrives, not per keystroke.
 const QUERY_INDEX = new Map();
-for (const [teamId, aliases] of Object.entries(SEARCH_ALIASES)) {
-  for (const alias of aliases) QUERY_INDEX.set(alias, teamId);
-  QUERY_INDEX.set(teamId.toLowerCase(), teamId);
+function rebuildQueryIndex() {
+  QUERY_INDEX.clear();
+  for (const [teamId, aliases] of Object.entries(SEARCH_ALIASES)) {
+    for (const alias of aliases) QUERY_INDEX.set(alias, teamId);
+    QUERY_INDEX.set(teamId.toLowerCase(), teamId);
+  }
+  for (const [alias, canonical] of Object.entries(identity)) {
+    QUERY_INDEX.set(alias.toLowerCase(), canonical);
+  }
 }
-for (const [alias, canonical] of Object.entries(IDENTITY_ALIASES)) {
-  QUERY_INDEX.set(alias.toLowerCase(), canonical);
+rebuildQueryIndex();
+
+/**
+ * Take the club codes pro-scout declares, from the vendored copy of its
+ * config/team-aliases.json. This is the only place those values enter, so they
+ * cannot drift from the file that owns them. Call it before anything reads the
+ * table; if the file never arrives the codes it carries are simply absent,
+ * which is louder than quietly resolving them from a stale copy.
+ */
+export function adoptVendoredAliases(document) {
+  for (const [code, entry] of Object.entries(document?.aliases ?? {})) {
+    if (entry?.canonical) identity[code] = entry.canonical;
+  }
+  rebuildQueryIndex();
+  return identity;
+}
+
+/** The merged club-code table: repo-owned entries plus whatever was adopted. */
+export function identityAliases() {
+  return identity;
 }
 
 /**
@@ -116,7 +140,7 @@ export function resolveTeamAlias(query) {
  */
 export function teamTokenCode(token) {
   const code = String(token ?? "").trim().toUpperCase();
-  return IDENTITY_ALIASES[code] ?? null;
+  return identity[code] ?? null;
 }
 
-export { IDENTITY_ALIASES, SEARCH_ALIASES };
+export { LOCAL_ALIASES, SEARCH_ALIASES };

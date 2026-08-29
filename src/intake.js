@@ -14,7 +14,7 @@
 
 import { escapeHtml } from "./escape.js";
 import { buildBundle, buildRequestsDocument, intakeIssueUrl, sourceIdFor } from "./contract.js";
-import { IDENTITY_ALIASES } from "./team-aliases.mjs";
+import { identityAliases } from "./team-aliases.mjs";
 
 const SUFFIXES = new Set(["jr", "sr", "ii", "iii", "iv", "v"]);
 
@@ -99,7 +99,7 @@ function buildIndex({ players = [], teams = [] }) {
   for (const team of teams) {
     if (team.team_id) index.teams.set(team.team_id.toUpperCase(), team.team_id);
   }
-  for (const [alias, canonical] of Object.entries(IDENTITY_ALIASES)) {
+  for (const [alias, canonical] of Object.entries(identityAliases())) {
     if (index.teams.has(canonical)) index.teams.set(alias, canonical);
   }
 

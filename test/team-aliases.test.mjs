@@ -11,7 +11,8 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { resolveTeamAlias, teamTokenCode, IDENTITY_ALIASES, SEARCH_ALIASES } from "../src/team-aliases.mjs";
+import { adoptVendoredAliases, identityAliases, resolveTeamAlias, teamTokenCode, LOCAL_ALIASES, SEARCH_ALIASES }
+  from "../src/team-aliases.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const teams = JSON.parse(readFileSync(join(root, "data", "team-manifest.json"), "utf8")).teams;
@@ -48,14 +49,24 @@ for (const team of teams) {
     `got ${resolveTeamAlias(nickname)}`);
 }
 
-// --- the vendored map is the authority for club codes -----------------------
+// --- the vendored map is the only source for the codes it declares ----------
 const vendored = JSON.parse(readFileSync(join(root, "contracts", "pro-scout", "team-aliases.json"), "utf8"));
+
+// Before adoption those codes must be absent. If one resolves here it has been
+// restated locally, which is the duplication this arrangement exists to remove.
+for (const code of Object.keys(vendored.aliases)) {
+  check(`${code} is not restated locally`, !(code in LOCAL_ALIASES) && teamTokenCode(code) === null,
+    `LOCAL_ALIASES carries ${LOCAL_ALIASES[code] ?? teamTokenCode(code)}`);
+}
+
+adoptVendoredAliases(vendored);
+
 for (const [code, entry] of Object.entries(vendored.aliases)) {
-  check(`vendored ${code} -> ${entry.canonical} is honoured`, IDENTITY_ALIASES[code] === entry.canonical,
-    `this repo maps it to ${IDENTITY_ALIASES[code]}`);
+  check(`vendored ${code} -> ${entry.canonical} is adopted`, teamTokenCode(code) === entry.canonical,
+    `resolved to ${teamTokenCode(code)}`);
   check(`vendored ${code} resolves to a real team`, ids.has(entry.canonical));
 }
-for (const [alias, canonical] of Object.entries(IDENTITY_ALIASES)) {
+for (const [alias, canonical] of Object.entries(identityAliases())) {
   check(`club code ${alias} points at a team the manifest has`, ids.has(canonical), `-> ${canonical}`);
   check(`club code ${alias} is matched as a token`, teamTokenCode(alias) === canonical);
 }
