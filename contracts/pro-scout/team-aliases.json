@@ -1,0 +1,23 @@
+{
+  "schema_version": "1.0",
+  "purpose": "Resolve source-specific NFL team abbreviations to the canonical team_code in the Gameplan NFL team registry, before anything crosses the production boundary.",
+  "rationale": "This is the team analogue of the GSIS rule. Gameplan decision 3 requires the provider to resolve player identity upstream because the consumer must never guess; team identity is the same problem with a smaller key space, and the same answer. Every alias here was found by a run silently producing a wrong result rather than an error: the Rams came back with zero defensive scores because play-by-play writes LA where the registry writes LAR, and every record still validated. Prefix matching is not safe -- LA is a prefix of LAC as well as LAR, and JAC/JAX share no useful prefix rule. Enumerate, do not infer.",
+  "canonical_authority": "gameplan config/nfl_team_registry.json",
+  "aliases": {
+    "LA": {
+      "canonical": "LAR",
+      "sources": ["nflverse_stats"],
+      "note": "nflverse play-by-play and weekly releases write LA for the Los Angeles Rams. LAC is written in full, so LA is unambiguous in this dataset -- but only in this dataset."
+    },
+    "JAC": {
+      "canonical": "JAX",
+      "sources": ["cbs"],
+      "note": "CBS Sports writes JAC for Jacksonville; the registry and nflverse write JAX."
+    },
+    "ARZ": {
+      "canonical": "ARI",
+      "sources": ["pro_scout_manifest"],
+      "note": "manifest/depth-charts.json and manifest/team-state.json write ARZ for Arizona while the depth-chart file is ARI.json and nflverse writes ARI. Recorded here so the join is fixed in one place; the manifests should be reconciled to ARI."
+    }
+  }
+}

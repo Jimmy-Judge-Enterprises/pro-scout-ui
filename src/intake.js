@@ -14,6 +14,7 @@
 
 import { escapeHtml } from "./escape.js";
 import { buildBundle, buildRequestsDocument, intakeIssueUrl, sourceIdFor } from "./contract.js";
+import { IDENTITY_ALIASES } from "./team-aliases.mjs";
 
 const SUFFIXES = new Set(["jr", "sr", "ii", "iii", "iv", "v"]);
 
@@ -70,21 +71,17 @@ const STOP = new Set(
    "suspended limited retired undrafted").split(" ")
 );
 
-// Abbreviations the manifest does not carry. Providers disagree about a
-// handful of clubs, and a team hint is worthless if ARI and ARZ read as two
-// different franchises.
-const TEAM_ALIASES = {
-  ARZ: "ARI", AZ: "ARI", WSH: "WAS", WFT: "WAS", JAC: "JAX", LA: "LAR", SFO: "SF",
-  GNB: "GB", KAN: "KC", NWE: "NE", NOR: "NO", NOS: "NO", TAM: "TB", LVR: "LV",
-  OAK: "LV", SD: "LAC", SDG: "LAC", STL: "LAR", CLV: "CLE", BLT: "BAL", HST: "HOU",
-};
+// Alternate club codes live in team-aliases.mjs, which is also what the Teams
+// search uses. Only the token-safe layer reaches here: a nickname would be
+// matched against single words and would decide "Dallas" is a club rather than
+// half of Dallas Goedert's name.
 
 const KIND_LABELS = {
   image: "IMG", video: "VID", vtt: "VTT", srt: "SRT", html: "WEB", json: "JSON",
   csv: "CSV", text: "TXT", binary: "BIN", paste: "PASTE", url: "URL", curated: "FAV",
 };
 
-const index = { players: [], byKey: new Map(), byLast: new Map(), teams: new Map(), phrases: new Set() };
+const index = { players: [], byKey: new Map(), byLast: new Map(), teams: new Map(), softTeams: new Set(), phrases: new Set() };
 
 function buildIndex({ players = [], teams = [] }) {
   index.players = players
@@ -102,9 +99,24 @@ function buildIndex({ players = [], teams = [] }) {
   for (const team of teams) {
     if (team.team_id) index.teams.set(team.team_id.toUpperCase(), team.team_id);
   }
-  for (const [alias, canonical] of Object.entries(TEAM_ALIASES)) {
+  for (const [alias, canonical] of Object.entries(IDENTITY_ALIASES)) {
     if (index.teams.has(canonical)) index.teams.set(alias, canonical);
   }
+
+  // A club code that is also somebody's given name cannot simply be struck out
+  // of a line. KC Concepcion is a real receiver whose first name is a real team
+  // id, and treating it as a club broke the name run and dropped him with no
+  // error. Which codes collide is read from the manifest rather than listed
+  // here, so a future signing fixes itself.
+  index.softTeams = new Set();
+  const nameTokens = new Set();
+  for (const player of index.players) {
+    for (const token of String(player.name).split(/\s+/)) {
+      const flat = token.replace(/[^A-Za-z]/g, "").toUpperCase();
+      if (flat) nameTokens.add(flat);
+    }
+  }
+  for (const code of index.teams.keys()) if (nameTokens.has(code)) index.softTeams.add(code);
 
   // Club names are blocked as whole phrases rather than as tokens: blocking
   // "Green" outright would also lose A.J. Green.
@@ -252,7 +264,10 @@ function nameTokenKind(token) {
   if (cleaned.length < 2) return "no";
   if (!/^[A-Z][A-Za-z.'\u2019-]*$/.test(cleaned)) return "no";
   const flat = cleaned.replace(/[^A-Za-z]/g, "").toUpperCase();
-  if (!flat || POSITIONS.has(flat) || index.teams.has(flat)) return "no";
+  if (!flat || POSITIONS.has(flat)) return "no";
+  // A colliding club code behaves like an ordinary word that is also a name:
+  // it belongs to the run only when a real name follows it.
+  if (index.teams.has(flat)) return index.softTeams.has(flat) ? "soft" : "no";
   const word = flat.toLowerCase();
   if (SOFT_STOP.has(word)) return "soft";
   return STOP.has(word) ? "no" : "yes";
@@ -320,9 +335,13 @@ function namesFromLine(line) {
 function hintsFromLine(line) {
   let position = null;
   let team = null;
-  for (const token of tokenize(line)) {
-    const flat = token.replace(/[^A-Za-z]/g, "").toUpperCase();
+  const tokens = tokenize(line);
+  for (let i = 0; i < tokens.length; i++) {
+    const flat = tokens[i].replace(/[^A-Za-z]/g, "").toUpperCase();
     if (flat.length < 2) continue;
+    // A token the scan reads as part of a name is not also a club hint, or
+    // "KC Concepcion CLE" would report his club as KC.
+    if (isNameToken(tokens[i], tokens[i + 1])) continue;
     if (!position && POSITIONS.has(flat)) position = flat;
     if (!team && index.teams.has(flat)) team = index.teams.get(flat);
   }
