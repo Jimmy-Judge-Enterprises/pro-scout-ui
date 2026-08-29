@@ -74,7 +74,7 @@ const STOP = new Set(
 // handful of clubs, and a team hint is worthless if ARI and ARZ read as two
 // different franchises.
 const TEAM_ALIASES = {
-  ARI: "ARZ", AZ: "ARZ", WSH: "WAS", WFT: "WAS", JAC: "JAX", LA: "LAR", SFO: "SF",
+  ARZ: "ARI", AZ: "ARI", WSH: "WAS", WFT: "WAS", JAC: "JAX", LA: "LAR", SFO: "SF",
   GNB: "GB", KAN: "KC", NWE: "NE", NOR: "NO", NOS: "NO", TAM: "TB", LVR: "LV",
   OAK: "LV", SD: "LAC", SDG: "LAC", STL: "LAR", CLV: "CLE", BLT: "BAL", HST: "HOU",
 };

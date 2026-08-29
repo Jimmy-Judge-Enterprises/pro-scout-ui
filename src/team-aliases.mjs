@@ -5,15 +5,16 @@
 // query can be expanded before it's matched against the manifest rather than
 // requiring the manifest itself to carry every synonym.
 //
-// Keys are the canonical team_id values this repo's manifests actually carry
-// -- read them from data/team-manifest.json rather than from memory, because
-// two of them are not the abbreviations you would guess: Arizona is ARZ and
-// Jacksonville is JAX. A key that matches no record filters the list to
-// nothing and skips the substring fallback, so the search gets worse rather
-// than better. Extend this list; do not invent a second source of truth for
-// team identity.
+// Keys are the canonical team_id values this repo's manifests actually carry.
+// Read them from data/team-manifest.json rather than from memory: Jacksonville
+// is JAX, not JAC, and Arizona published as ARZ until pro-scout's generator
+// started resolving source spellings against its own alias file. A key that
+// matches no record filters the list to nothing AND skips the substring
+// fallback, so the search gets worse rather than better -- which is why
+// test/team-aliases.test.mjs reads the manifest instead of restating it.
+// Extend this list; do not invent a second source of truth for team identity.
 const TEAM_ALIASES = {
-  ARZ: ["arz", "ari", "az", "arizona", "cardinals", "cards"],
+  ARI: ["ari", "arz", "az", "arizona", "cardinals", "cards"],
   ATL: ["atl", "atlanta", "falcons"],
   BAL: ["bal", "baltimore", "ravens"],
   BUF: ["buf", "buffalo", "bills"],
