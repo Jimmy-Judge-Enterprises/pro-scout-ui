@@ -86,6 +86,8 @@ node test/contract.test.mjs         # the boundary rules built on them still hol
 node test/team-aliases.test.mjs     # aliases point at teams the manifest carries
 node test/player-table.test.mjs     # held and available partition one row shape
 node test/team-analysis.test.mjs    # every finding derived, none of them a judgement
+node test/table-sort.test.mjs       # sorting handles absent values
+node test/anatomy-panel.test.mjs    # gauges computed from a real cohort, or not drawn
 node test/serve.test.mjs            # the preview server stays inside its root
 ```
 
