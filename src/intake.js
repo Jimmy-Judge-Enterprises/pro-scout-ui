@@ -208,6 +208,9 @@ function applyAnalystHints(row, { team, position, note }) {
   const nextPosition = normalisePosition(position);
   if (nextTeam) {
     row.hints.team = nextTeam;
+    // What was actually typed, kept beside the code it normalised to. The
+    // basis says who wrote it; this says how they wrote it.
+    row.hints.teamAsWritten = String(team ?? "").trim() || null;
     row.hints.teamBasis = "analyst";
   }
   if (nextPosition) {
@@ -335,6 +338,7 @@ function namesFromLine(line) {
 function hintsFromLine(line) {
   let position = null;
   let team = null;
+  let teamAsWritten = null;
   const tokens = tokenize(line);
   for (let i = 0; i < tokens.length; i++) {
     const flat = tokens[i].replace(/[^A-Za-z]/g, "").toUpperCase();
@@ -343,9 +347,14 @@ function hintsFromLine(line) {
     // "KC Concepcion CLE" would report his club as KC.
     if (isNameToken(tokens[i], tokens[i + 1])) continue;
     if (!position && POSITIONS.has(flat)) position = flat;
-    if (!team && index.teams.has(flat)) team = index.teams.get(flat);
+    if (!team && index.teams.has(flat)) {
+      team = index.teams.get(flat);
+      // "S.F.", "KAN" and "SF" all resolve to one code; only the source knows
+      // which of them it wrote, so the code does not replace the spelling.
+      teamAsWritten = tokens[i].replace(/^[^A-Za-z0-9]+|[^A-Za-z0-9]+$/g, "");
+    }
   }
-  return { position, team };
+  return { position, team, teamAsWritten };
 }
 
 // ---------------------------------------------------------- format readers ---
@@ -379,10 +388,15 @@ const positionCode = (value) => {
 };
 const teamCode = (value) => (typeof value === "string" ? index.teams.get(value.trim().toUpperCase()) ?? null : null);
 
-// The team a document is about, named once in its header.
+// The team a document is about, named once in its header -- reported as the
+// code it resolves to and the spelling the header actually used.
 function documentTeam(data) {
-  const team = typeof data.team === "string" ? data.team : data.team?.abbr ?? data.team?.team_id;
-  return teamCode(data.team_id) ?? teamCode(data.team_abbr) ?? teamCode(data.abbr) ?? teamCode(team);
+  const nested = typeof data.team === "string" ? data.team : data.team?.abbr ?? data.team?.team_id;
+  for (const written of [data.team_id, data.team_abbr, data.abbr, nested]) {
+    const code = teamCode(written);
+    if (code) return { code, written: String(written).trim() };
+  }
+  return { code: null, written: null };
 }
 
 // A structured source carries context a flat line cannot: the position a player
@@ -411,13 +425,15 @@ function readJson(text) {
     }
     for (const [key, value] of Object.entries(node)) {
       if (typeof value !== "string" || !/name|player|full/i.test(key)) continue;
-      const ownTeam = teamCode(node.team_id ?? node.team ?? node.team_abbr);
+      const ownWritten = node.team_id ?? node.team ?? node.team_abbr;
+      const ownTeam = teamCode(ownWritten);
       records.push({
         text: value,
         hints: {
           position: positionCode(node.position ?? node.pos) ?? section,
-          team: ownTeam ?? fileTeam,
-          teamBasis: ownTeam ? "observed" : fileTeam ? "document" : null,
+          team: ownTeam ?? fileTeam.code,
+          teamAsWritten: ownTeam ? String(ownWritten).trim() : fileTeam.written,
+          teamBasis: ownTeam ? "observed" : fileTeam.code ? "document" : null,
         },
         // Kept verbatim for the fact domains downstream; a null depth stays null.
         source_fields: {
@@ -445,7 +461,9 @@ function readJson(text) {
     capture_status: str(data.capture_status),
     observed_at: str(data.source_observation_date),
     checked_at: str(data.source_checked_at),
-    team: fileTeam,
+    // Canonical: this one is read as a fact about the document's subject, and
+    // the fact domains downstream are validated against the club registry.
+    team: fileTeam.code,
   };
   return { records, declared: Object.values(declared).some(Boolean) ? declared : null };
 }
@@ -498,6 +516,7 @@ function mergeHints(line, structural) {
     // document -- is observed. Only a person typing into the canvas is not.
     positionBasis: position ? "observed" : null,
     team: line.team ?? structural?.team ?? null,
+    teamAsWritten: (line.team ? line.teamAsWritten : structural?.teamAsWritten) ?? null,
     teamBasis: line.team ? "observed" : structural?.teamBasis ?? null,
   };
 }
@@ -636,6 +655,7 @@ function addCandidate(name, hints, source, fields = null) {
     // A team seen beside the player outranks one inherited from a file header.
     if (hints.team && (!existing.hints.team || (hints.teamBasis === "observed" && existing.hints.teamBasis === "document"))) {
       existing.hints.team = hints.team;
+      existing.hints.teamAsWritten = hints.teamAsWritten ?? null;
       existing.hints.teamBasis = hints.teamBasis ?? null;
     }
     return false;
@@ -656,6 +676,7 @@ function addCandidate(name, hints, source, fields = null) {
       position: hints.position ?? null,
       positionBasis: hints.positionBasis ?? null,
       team: hints.team ?? null,
+      teamAsWritten: hints.teamAsWritten ?? null,
       teamBasis: hints.teamBasis ?? null,
     },
     analyst_note: null,
@@ -679,7 +700,7 @@ function ingestText(text, source) {
     // Line hints only bind when the line names one player; on a comma list there
     // is no telling which name the trailing "WR MIN" belongs to. Structural
     // hints are safe either way -- they came from the shape of the document.
-    const inline = names.length === 1 ? hintsFromLine(record.text) : { position: null, team: null };
+    const inline = names.length === 1 ? hintsFromLine(record.text) : { position: null, team: null, teamAsWritten: null };
     const hints = mergeHints(inline, record.hints);
     // Source fields describe one player, so they only attach when the line
     // named exactly one.
@@ -851,10 +872,16 @@ function renderRows() {
       resolution += `<div class="intake-sub">${escapeHtml((match.capture_status ?? "unknown").replace(/_/g, " "))} \u00b7 ${escapeHtml(match.captured_at ?? "no capture date")}</div>`;
     }
 
-    const hintCell = (value, hint, basis) => value
+    // On a row that is about to leave as a request, the spelling the source
+    // used is shown beside the code it was normalised to, whenever the two
+    // differ. The normalisation is this canvas's inference; the analyst gets
+    // to see what it was made from rather than only its result.
+    const written = (hint, raw) =>
+      raw && raw.toUpperCase() !== hint.toUpperCase() ? ` \u00b7 source wrote \u201c${escapeHtml(raw)}\u201d` : "";
+    const hintCell = (value, hint, basis, raw = null) => value
       ? `<span class="intake-slot">${escapeHtml(value)}</span>`
       : hint
-        ? `<span class="intake-slot">${escapeHtml(hint)}</span><div class="intake-sub" title="${escapeHtml(BASIS_TITLES[basis] ?? "")}">${escapeHtml(BASIS_LABELS[basis] ?? "hint")}</div>`
+        ? `<span class="intake-slot">${escapeHtml(hint)}</span><div class="intake-sub" title="${escapeHtml(BASIS_TITLES[basis] ?? "")}">${escapeHtml(BASIS_LABELS[basis] ?? "hint")}${written(hint, raw)}</div>`
         : '<span class="intake-slot">\u2014</span>';
 
     return `<tr>
@@ -865,7 +892,7 @@ function renderRows() {
       </td>
       <td><span class="intake-gsis${match ? "" : " none"}">${match ? escapeHtml(match.gsis_id) : "\u2014"}</span></td>
       <td>${hintCell(match?.position, row.hints.position, row.hints.positionBasis)}</td>
-      <td>${hintCell(match?.team_id, row.hints.team, row.hints.teamBasis)}</td>
+      <td>${hintCell(match?.team_id, row.hints.team, row.hints.teamBasis, row.hints.teamAsWritten)}</td>
       <td>${resolution}</td>
       <td><span class="intake-sub" title="${escapeHtml(labels.join(", "))}">${escapeHtml(sourceText)}</span></td>
       <td class="intake-row-actions">

@@ -162,6 +162,11 @@ function buildRequest(row, source, batchId) {
     batch_id: batchId,
     player_name: row.captured,
     team_hint: row.hints.team ?? null,
+    // The spelling the source used, not the code this canvas normalised it to.
+    // Gameplan's adapters keep `source_identity.team_as_written` for the same
+    // reason: the normalisation is an inference made here, and a search that
+    // only ever sees the inference cannot check it against the document.
+    team_hint_as_written: row.hints.teamAsWritten ?? null,
     team_hint_basis: row.hints.teamBasis ?? null,
     position_hint: row.hints.position ?? null,
     position_hint_basis: row.hints.positionBasis ?? null,
