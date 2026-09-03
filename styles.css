@@ -62,6 +62,22 @@ h1 { margin: 2px 0 0; font-size: 22px; }
 .definition-list dt { color: #738aa5; }
 .definition-list dd { margin: 0; color: #d8e4f1; }
 
+/* Master-detail: the two panes scroll independently.
+
+   They did not, and that is what stranded the detail. `.workspace` set only a
+   min-height and nothing had an overflow, so the whole document scrolled as one
+   piece: you scrolled deep into an 849-row table, clicked a row, the table was
+   replaced by a short panel, and the viewport stayed where it was. The record was
+   rendered correctly and simply above you.
+
+   Only above the stacking breakpoint. Below it the sidebar sits on top of the
+   detail in one column, where two independent scrollers would be worse than the
+   page scroll it already has. */
+@media (min-width: 761px) {
+  .workspace { height: calc(100vh - 84px); }
+  .sidebar, .detail-panel { overflow-y: auto; }
+}
+
 @media (max-width: 760px) {
   .topbar { grid-template-columns: 1fr auto; }
   .entity-toggle { grid-row: 2; grid-column: 1 / -1; justify-self: stretch; }
@@ -280,3 +296,191 @@ h1 { margin: 2px 0 0; font-size: 22px; }
 .intake-restored[hidden] { display: none; }
 .intake-restored strong { color: #edf3fb; }
 .intake-restored-actions { display: flex; gap: 7px; }
+
+/* --- presence filter and the read-only player table --- */
+.presence-filter { display: inline-flex; margin: 10px 0 2px; padding: 3px; border: 1px solid #2b3d57; border-radius: 10px; background: #111d30; }
+.presence-button { flex: 1; border: 0; padding: 6px 10px; border-radius: 7px; background: transparent; color: #9db0c7; font-size: 12px; cursor: pointer; white-space: nowrap; }
+.presence-button.is-active { background: #e7eef8; color: #0b1422; font-weight: 700; }
+
+/* The table scrolls inside its own box. Letting it widen the page instead would
+   push the sidebar off-screen on a narrow window. */
+.table-scroll { overflow-x: auto; margin-top: 14px; border: 1px solid #223148; border-radius: 12px; }
+/* separate, NOT collapse. A collapsed border belongs to the table rather than
+   the cell, so it does not travel with a position:sticky header -- the header
+   stays put and its underline scrolls away, leaving rows sliding up against it
+   with nothing between them. The separator is an inset shadow for the same
+   reason: a shadow is painted with the element and a collapsed border is not. */
+.player-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; }
+.player-table thead th { position: sticky; top: 0; z-index: 1; background: #0d1727; color: #8fa4bf; text-align: left; font-size: 11px; letter-spacing: .09em; text-transform: uppercase; padding: 10px 12px; box-shadow: inset 0 -1px 0 #223148; }
+.player-table td, .player-table th[scope="row"] { padding: 9px 12px; border-bottom: 1px solid #18263c; color: #dce7f4; }
+.player-table tbody tr:last-child td, .player-table tbody tr:last-child th { border-bottom: 0; }
+.player-row { cursor: pointer; }
+.player-row:hover td, .player-row:hover th { background: #15233a; }
+.player-name { text-align: left; font-weight: 600; }
+.player-table .numeric { font-variant-numeric: tabular-nums; color: #a9bbd0; }
+
+/* A club change is surfaced, never suppressed: the manifest used to withhold
+   these players entirely, which hid exactly the ones who had moved. */
+.moved-flag { display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 999px; background: #1d3455; color: #9dc0f0; font-size: 10px; letter-spacing: .04em; text-transform: uppercase; }
+.presence-tag { color: #8fa4bf; font-style: italic; }
+
+@media (max-width: 720px) {
+  .presence-filter { width: 100%; }
+  .player-table { font-size: 12px; }
+}
+
+/* --- team browser: division list, and the fact/analysis split --- */
+.division-heading {
+  margin: 14px 0 4px; padding: 0 10px;
+  color: #7890ad; font-size: 10px; font-weight: 700;
+  letter-spacing: .14em; text-transform: uppercase;
+}
+.entity-list .division-heading:first-child { margin-top: 2px; }
+
+/* The two halves are deliberately not interchangeable at a glance. Facts sit on
+   the panel ground; analysis is inset and tinted, so a reader can tell which
+   half he is reading without consulting the label. */
+.pane { margin-top: 18px; }
+.pane-banner { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; padding-bottom: 8px; border-bottom: 1px solid #223148; }
+.pane-label { font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: #dce7f4; }
+.pane-caption { font-size: 11px; color: #7890ad; }
+.pane-fact .pane-label { color: #9dc0f0; }
+.pane-analysis .pane-label { color: #d8c08a; }
+
+.pane-analysis .findings {
+  margin-top: 12px; padding: 4px 16px 12px;
+  border: 1px solid #2f3a4e; border-left: 3px solid #b99a4e;
+  border-radius: 10px; background: #131c2b;
+}
+.finding { padding: 12px 0; border-bottom: 1px solid #1d2a3f; }
+.finding:last-child { border-bottom: 0; }
+.finding-heading { font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #d8c08a; }
+.finding-body { margin: 5px 0 0; color: #dce7f4; font-size: 13px; line-height: 1.5; }
+.finding-note { margin: 5px 0 0; color: #8fa4bf; font-size: 12px; line-height: 1.5; font-style: italic; }
+
+/* The capture vocabulary is green / gold / red; the pill wears it. */
+.status-pill.green { border-color: #2f6f4b; color: #7fd6a4; }
+.status-pill.gold  { border-color: #7a6428; color: #e2c574; }
+.status-pill.red   { border-color: #7a3030; color: #f0a0a0; }
+
+@media (max-width: 720px) {
+  .pane-banner { flex-direction: column; gap: 2px; }
+  .pane-analysis .findings { padding: 4px 12px 10px; }
+}
+
+/* --- sortable columns --- */
+/* A button, not a click handler on the cell: it must be reachable by keyboard and
+   announced as a control. The header keeps its own look, so the affordance is the
+   pointer and the mark rather than a button that looks pasted into a table. */
+.sort-button {
+  display: inline-flex; align-items: center; gap: 6px;
+  margin: -4px -6px; padding: 4px 6px;
+  border: 0; border-radius: 6px; background: transparent;
+  color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit;
+  cursor: pointer;
+}
+.sort-button:hover { background: #16233a; color: #dce7f4; }
+.sort-button:focus-visible { outline: 2px solid #7698bd; outline-offset: 1px; }
+.sort-button.is-sorted { color: #dce7f4; }
+
+/* The mark shows direction only on the sorted column. A neutral glyph on every
+   header would say all five sort, and three of them do not. */
+.sort-mark { font-size: 9px; line-height: 1; opacity: 0; }
+.sort-button:hover .sort-mark { opacity: .45; }
+.sort-button.is-sorted .sort-mark { opacity: 1; color: #9dc0f0; }
+.sort-button .sort-mark::before { content: "\25B2"; }
+.sort-button[data-direction="desc"] .sort-mark::before { content: "\25BC"; }
+
+/* --- prospect profile: hero card, athletic gauges, production tiles --- */
+.hero-card {
+  display: grid; grid-template-columns: auto 1fr auto; gap: 18px; align-items: center;
+  margin-top: 16px; padding: 18px;
+  border: 1px solid #22344d; border-radius: 12px;
+  background: linear-gradient(135deg, #16243a 0%, #0d1727 100%);
+}
+.avatar {
+  width: 62px; height: 62px; display: grid; place-items: center;
+  border: 2px solid #4f7fb5; border-radius: 50%;
+  background: #101b2c; color: #9dc0f0; font-weight: 800; font-size: 19px; letter-spacing: .02em;
+}
+.hero-info { min-width: 0; }
+.hero-badges { display: flex; flex-wrap: wrap; gap: 8px; }
+.badge {
+  display: inline-flex; gap: 7px; align-items: baseline;
+  padding: 4px 10px; border: 1px solid #2b3d57; border-radius: 7px;
+  background: #111d30; color: #8fa4bf; font-size: 11.5px;
+}
+.badge b { color: #edf3fb; font-weight: 700; }
+.hero-note { margin-top: 9px; color: #7890ad; font-size: 11.5px; line-height: 1.5; }
+
+/* RAS is the one number the source publishes as a rating of its own, so it keeps
+   the emphasis the design gave it. It is reported, not computed here. */
+.ras-box { text-align: center; padding: 9px 15px; border: 1px solid #2f6f4b; border-radius: 9px; background: #12241c; }
+.ras-value { font-size: 22px; font-weight: 800; line-height: 1; color: #7fd6a4; font-variant-numeric: tabular-nums; }
+.ras-label { margin-top: 4px; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: #7890ad; }
+
+.section-title {
+  display: flex; align-items: center; gap: 10px; margin: 22px 0 12px;
+  font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: #8fa4bf;
+}
+.section-title::after { content: ""; flex: 1; height: 1px; background: #223148; }
+
+.gauge-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(232px, 1fr)); gap: 14px; }
+.gauge-card { padding: 13px 15px; border: 1px solid #22344d; border-radius: 10px; background: #0f1b2c; }
+.gauge-header { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 9px; }
+.gauge-title { color: #8fa4bf; font-size: 12.5px; }
+.gauge-value { color: #edf3fb; font-weight: 700; font-variant-numeric: tabular-nums; }
+.bar-track { height: 7px; border-radius: 4px; background: #18263c; overflow: hidden; }
+.bar-fill { height: 100%; border-radius: 4px; }
+.bar-fill.cyan { background: #4f9fd8; }
+.bar-fill.green { background: #3abf7a; }
+.bar-fill.amber { background: #d6a847; }
+/* The bar never appears without this line. A percentile with no statement of what
+   it is a percentile OF is a number the reader has to guess at. */
+.gauge-basis { margin-top: 7px; color: #7890ad; font-size: 11px; line-height: 1.45; }
+
+.stats-matrix { display: grid; grid-template-columns: repeat(auto-fit, minmax(158px, 1fr)); gap: 12px; }
+.stat-tile { padding: 12px 14px; border: 1px solid #22344d; border-radius: 10px; background: #0f1b2c; }
+.stat-label { color: #738aa5; font-size: 11px; }
+.stat-value { margin-top: 4px; color: #edf3fb; font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+@media (max-width: 760px) {
+  .hero-card { grid-template-columns: auto 1fr; }
+  .ras-box { grid-column: 1 / -1; }
+}
+/* --- the table gets its own scroll, so its header can stay put --- */
+/* `.table-scroll` already carried overflow-x: auto, and in CSS a `visible` on the
+   other axis computes to `auto` beside it -- so it was a scroll container all
+   along, with unbounded height, and never scrolled vertically. The sticky header
+   was anchored to it rather than to the panel that actually scrolled, which is
+   why it never stuck. Bounding the height here is what makes sticky mean
+   something. */
+.detail-panel.shows-table { overflow: hidden; display: flex; flex-direction: column; }
+/* :not([hidden]) is load-bearing. `display: flex` on a selector this specific
+   outranks the browser's own [hidden] rule, so without it the table would show
+   through whenever the class and the hidden attribute disagreed. */
+.detail-panel.shows-table #player-table-panel:not([hidden]) { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.detail-panel.shows-table .table-scroll { flex: 1; min-height: 0; overflow: auto; }
+
+.table-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.expand-button {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 8px 13px; border: 1px solid #2b3d57; border-radius: 9px;
+  background: #111d30; color: #9db0c7; font-size: 12px; cursor: pointer; white-space: nowrap;
+}
+.expand-button:hover { background: #16243a; color: #dce7f4; }
+.expand-button:focus-visible { outline: 2px solid #7698bd; outline-offset: 2px; }
+.expand-button[aria-pressed="true"] { background: #e7eef8; border-color: #e7eef8; color: #0b1422; font-weight: 700; }
+.expand-mark::before { content: "\2921\2922"; letter-spacing: -2px; }
+.expand-button[aria-pressed="true"] .expand-mark::before { content: "\2922\2921"; }
+
+/* --- full screen --- */
+/* The title bar and the sidebar are hidden rather than shrunk. Both are
+   navigation, and navigation earns no height while a reader is scanning rows --
+   which is the whole complaint this answers. */
+.app-shell.is-fullscreen .topbar { display: none; }
+.app-shell.is-fullscreen .sidebar { display: none; }
+.app-shell.is-fullscreen .workspace { grid-template-columns: minmax(0, 1fr); height: 100vh; }
+.app-shell.is-fullscreen .detail-panel { padding: 16px 20px; }
+.app-shell.is-fullscreen .capture-lede { margin: 6px 0 10px; }
+.app-shell.is-fullscreen .record-title { font-size: 20px; }

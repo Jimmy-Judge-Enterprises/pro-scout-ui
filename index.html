@@ -31,6 +31,16 @@
         </div>
         <label class="search-label" for="entity-search">Search</label>
         <input id="entity-search" class="search-input" type="search" placeholder="Search teams" autocomplete="off" />
+
+        <!-- Held vs available. The manifest carries both under a `presence` field
+             because they are one table with one column different; this chooses which
+             rows of it to show. Hidden outside the players view. -->
+        <div id="presence-filter" class="presence-filter" role="group" aria-label="Player presence" hidden>
+          <button type="button" class="presence-button is-active" data-presence="held" aria-pressed="true">In pro-scout</button>
+          <button type="button" class="presence-button" data-presence="available" aria-pressed="false">Available</button>
+          <button type="button" class="presence-button" data-presence="all" aria-pressed="false">All</button>
+        </div>
+
         <div id="entity-list" class="entity-list" role="list"></div>
       </aside>
 
@@ -40,6 +50,55 @@
           <h2>No record selected</h2>
           <p>Choose a team or player from the manifest.</p>
         </div>
+
+        <!-- The read-only table. Shown in the players view until a row is chosen,
+             so the default state is the whole roster rather than an empty panel. -->
+        <div id="player-table-panel" hidden>
+          <div class="table-heading">
+            <div>
+              <div class="record-kicker">PLAYERS</div>
+              <h2 class="record-title" id="player-table-title">In pro-scout</h2>
+            </div>
+            <!-- Expand drops the title bar and the sidebar. Neither earns its
+                 height while scanning 1,159 rows. Escape returns. -->
+            <button type="button" id="expand-table" class="expand-button" aria-pressed="false">
+              <span class="expand-mark" aria-hidden="true"></span>
+              <span id="expand-label">Expand</span>
+            </button>
+          </div>
+          <p class="capture-lede" id="player-table-lede"></p>
+          <div class="table-scroll">
+            <table class="player-table">
+              <thead>
+                <!-- Team and Last played sort on click. They are buttons rather
+                     than click handlers on the cell so they are reachable by
+                     keyboard and announced as controls; aria-sort is kept in step
+                     by the renderer. -->
+                <tr>
+                  <th scope="col">Player</th>
+                  <th scope="col" id="sort-position" aria-sort="none">
+                    <button type="button" class="sort-button" data-sort="position">
+                      Pos<span class="sort-mark" aria-hidden="true"></span>
+                    </button>
+                  </th>
+                  <th scope="col" id="sort-team" aria-sort="none">
+                    <button type="button" class="sort-button" data-sort="team">
+                      Team<span class="sort-mark" aria-hidden="true"></span>
+                    </button>
+                  </th>
+                  <th scope="col" id="sort-lastPlayed" aria-sort="none">
+                    <button type="button" class="sort-button" data-sort="lastPlayed">
+                      Last played<span class="sort-mark" aria-hidden="true"></span>
+                    </button>
+                  </th>
+                  <th scope="col">Captured</th>
+                </tr>
+              </thead>
+              <tbody id="player-table-body"></tbody>
+            </table>
+          </div>
+        </div>
+
         <div id="detail-content" hidden></div>
 
         <!-- Intake. This page holds no credentials and calls no API: submitting
