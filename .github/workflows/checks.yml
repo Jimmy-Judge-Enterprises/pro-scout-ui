@@ -27,6 +27,9 @@ jobs:
       - name: Boundary behaviour holds
         run: node test/contract.test.mjs
 
+      - name: Search aliases point at real teams
+        run: node test/team-aliases.test.mjs
+
       - name: Player table reads the manifest it is given
         run: node test/player-table.test.mjs
 

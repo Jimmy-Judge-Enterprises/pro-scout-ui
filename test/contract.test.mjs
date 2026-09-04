@@ -12,6 +12,7 @@ import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { buildBundle, buildRequestsDocument, sourceIdFor } from "../src/contract.js";
+import { LOCAL_ALIASES } from "../src/team-aliases.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const read = (path) => JSON.parse(readFileSync(join(root, path), "utf8"));
@@ -194,6 +195,32 @@ const bundle = (rows, sources) =>
   check("the note travels with the request", request.notes === "two players share this surname");
   check("a contradicted hint travels rather than being resolved here",
     request.hint_conflict?.clashes.length === 1, JSON.stringify(request.hint_conflict));
+}
+
+// --- the spelling a source used survives its normalisation -----------------
+{
+  // Read from the repo's own alias table rather than restated here: whatever
+  // provider spellings it declares, one of them is a real thing a source wrote
+  // and a real code this canvas would turn it into.
+  const [written, code] = Object.entries(LOCAL_ALIASES)[0];
+  const quoted = {
+    id: "row-written", request_id: "req-written", captured: alpha.name, status: "pending", match: null,
+    hints: { position: null, positionBasis: null, team: code, teamAsWritten: written, teamBasis: "document" },
+    sourceIds: ["src-1"], occurrences: 1, candidates: [], analyst_note: null,
+  };
+  const out = await bundle([quoted], [source(complete)]);
+  const request = out.requests[0];
+  check("the request carries the code the hint normalised to", request.team_hint === code, request.team_hint);
+  check("and the spelling the source actually used",
+    request.team_hint_as_written === written, JSON.stringify(request.team_hint_as_written));
+  check("the two are distinguishable", written !== code, `${written} === ${code}`);
+
+  // Absence is reported as absence. Echoing the code back would turn an
+  // inference this canvas made into something the source appears to have said.
+  const silent = { ...quoted, hints: { ...quoted.hints, teamAsWritten: null } };
+  const bare = await bundle([silent], [source(complete)]);
+  check("an unrecorded spelling stays null rather than echoing the code",
+    bare.requests[0].team_hint_as_written === null, JSON.stringify(bare.requests[0].team_hint_as_written));
 }
 
 // --- one manifest describes one source -------------------------------------

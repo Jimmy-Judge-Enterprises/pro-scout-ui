@@ -67,9 +67,14 @@ batch says so rather than passing for a fresh read.
 ## Contracts
 
 `contracts/gameplan/` holds Gameplan's provider contracts, vendored through
-pro-scout, and `src/vendor/jsonschema.js` is the validator upstream CI uses. They
-are copies, not sources: Gameplan owns them and this repo never edits them.
+pro-scout; `contracts/pro-scout/team-aliases.json` is pro-scout's club-code alias
+map; `src/vendor/jsonschema.js` is the validator upstream CI uses. They are
+copies, not sources: upstream owns them and this repo never edits them.
 `contracts/VENDORED.json` records the upstream commits and a SHA-256 per file.
+
+The alias map is the only place the codes it declares enter this repo. The
+module carries the relocations and provider spellings owned here and adopts the
+rest at load, so a value cannot disagree with itself.
 
 ## Checks
 
@@ -78,8 +83,11 @@ No dependencies and no test framework, the same way pro-scout runs its own:
 ```sh
 node scripts/verify-contracts.mjs   # vendored contracts are byte-identical
 node test/contract.test.mjs         # the boundary rules built on them still hold
+node test/team-aliases.test.mjs     # aliases point at teams the manifest carries
 node test/player-table.test.mjs     # held and available partition one row shape
 node test/team-analysis.test.mjs    # every finding derived, none of them a judgement
+node test/table-sort.test.mjs       # sorting handles absent values
+node test/anatomy-panel.test.mjs    # gauges computed from a real cohort, or not drawn
 node test/serve.test.mjs            # the preview server stays inside its root
 ```
 

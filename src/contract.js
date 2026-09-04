@@ -162,6 +162,11 @@ function buildRequest(row, source, batchId) {
     batch_id: batchId,
     player_name: row.captured,
     team_hint: row.hints.team ?? null,
+    // The spelling the source used, not the code this canvas normalised it to.
+    // Gameplan's adapters keep `source_identity.team_as_written` for the same
+    // reason: the normalisation is an inference made here, and a search that
+    // only ever sees the inference cannot check it against the document.
+    team_hint_as_written: row.hints.teamAsWritten ?? null,
     team_hint_basis: row.hints.teamBasis ?? null,
     position_hint: row.hints.position ?? null,
     position_hint_basis: row.hints.positionBasis ?? null,
@@ -285,11 +290,12 @@ export function buildRequestsDocument({ requests, batchId, knownAt }) {
 const INTAKE_REPO = "Jimmy-Judge-Enterprises/pro-scout";
 const INTAKE_TEMPLATE = "player-intake.yml";
 
-export function intakeIssueUrl({ player_name, team_hint, position_hint, notes }) {
+export function intakeIssueUrl({ player_name, team_hint, position_hint, notes, request_id }) {
   const params = new URLSearchParams({ template: INTAKE_TEMPLATE, title: `[intake] ${player_name}` });
   params.set("player_name", player_name);
   if (team_hint) params.set("team_hint", team_hint);
   if (position_hint) params.set("position_hint", position_hint);
+  if (request_id) params.set("request_id", request_id);
   if (notes) params.set("notes", notes);
   return `https://github.com/${INTAKE_REPO}/issues/new?${params}`;
 }

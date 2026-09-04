@@ -1,4 +1,4 @@
-import { resolveTeamAlias } from "./team-aliases.mjs";
+import { adoptVendoredAliases, resolveTeamAlias } from "./team-aliases.mjs";
 import { filterByPresence, playerRow } from "./presence.mjs";
 import { analyseTeam, byDivision } from "./team-analysis.mjs";
 import { gaugesFor, heroFor, productionFor } from "./anatomy-panel.mjs";
@@ -68,10 +68,20 @@ function storage() {
 }
 
 async function loadManifests() {
-  const [teams, players] = await Promise.all([
+  // The vendored alias map travels with the manifests: club codes must be
+  // resolvable before anything is searched or extracted, and pro-scout's copy
+  // is the authority for the ones it declares.
+  const [teams, players, aliases] = await Promise.all([
     fetch("./data/team-manifest.json").then((r) => r.ok ? r.json() : []),
     fetch("./data/player-manifest.json").then((r) => r.ok ? r.json() : []),
+    fetch("./contracts/pro-scout/team-aliases.json")
+      .then((r) => r.ok ? r.json() : Promise.reject(new Error(`responded ${r.status}`)))
+      .catch((error) => {
+        console.error("Team alias map load failed; the codes it declares will not resolve", error);
+        return null;
+      }),
   ]);
+  if (aliases) adoptVendoredAliases(aliases);
   state.manifests.teams = Array.isArray(teams) ? teams : teams.teams ?? [];
   state.manifests.players = Array.isArray(players) ? players : players.players ?? [];
 }
