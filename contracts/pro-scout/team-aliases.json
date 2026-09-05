@@ -16,8 +16,8 @@
     },
     "ARZ": {
       "canonical": "ARI",
-      "sources": ["pro_scout_manifest"],
-      "note": "manifest/depth-charts.json and manifest/team-state.json write ARZ for Arizona while the depth-chart file is ARI.json and nflverse writes ARI. Recorded here so the join is fixed in one place; the manifests should be reconciled to ARI."
+      "sources": ["ourlads"],
+      "note": "Ourlads writes ARZ for Arizona, in its team index and in its depth-chart URL; the registry, nflverse and depth-charts/NFC_WEST/ARI.json all write ARI. The alias was previously attributed to pro_scout_manifest, because the foreign spelling had been allowed to propagate into this repo's own records -- manifest/depth-charts.json, manifest/team-state.json and the team_state_id NFL:2026:ARZ. Those are canonical as of this commit, so this entry now covers only what Ourlads publishes, which is what an alias is for. Ourlads' own URL keeps ARZ: it is their address, not our code."
     }
   }
 }
