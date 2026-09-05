@@ -13,6 +13,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { buildBundle, buildRequestsDocument, sourceIdFor } from "../src/contract.js";
 import { LOCAL_ALIASES } from "../src/team-aliases.mjs";
+import { validate } from "../src/vendor/jsonschema.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const read = (path) => JSON.parse(readFileSync(join(root, path), "utf8"));
@@ -23,6 +24,12 @@ const schemas = {
   identityReferenceFacts: read("contracts/gameplan/facts/identity_reference.schema.json"),
   depthChartFacts: read("contracts/gameplan/facts/depth_chart.schema.json"),
 };
+
+// The consumer's own declaration of what it can read, vendored from
+// pro-scout. Validating against it is what stops this side and that side
+// from restating each other -- which is how they drifted before, the canvas
+// emitting one schema_version while pro-scout's test asserted another.
+const identityRequests = read("contracts/pro-scout/identity-requests.schema.json");
 
 const manifest = read("data/player-manifest.json");
 const [alpha, beta] = manifest.players;
@@ -124,6 +131,38 @@ const bundle = (rows, sources) =>
   const document = buildRequestsDocument({ requests: out.requests, batchId: BATCH_ID, knownAt: KNOWN_AT });
   check("requests document counts its requests", document.request_count === 1);
   check("the document names the join key", /request\.request_id/.test(document.reconcile_via), document.reconcile_via);
+}
+
+// --- the real export satisfies the contract the consumer declares ----------
+// Not a fixture shaped like the export: the export itself, from
+// buildRequestsDocument, against the file pro-scout validates incoming
+// batches with. Anything else is this side agreeing with itself.
+{
+  const asked = {
+    id: "row-real", request_id: "req-real", captured: alpha.name, status: "review", match: null,
+    hints: { position: alpha.position, positionBasis: "observed", team: "LAR", teamAsWritten: "STL", teamBasis: "observed" },
+    sourceIds: ["src-1"], occurrences: 3, analyst_note: "two players share this surname",
+    candidates: [beta],
+    conflict: { name: alpha.name, gsis_id: alpha.gsis_id, clashes: [`team LAR against ${alpha.team_id}`] },
+  };
+  const out = await bundle([asked], [source(complete)]);
+  const document = buildRequestsDocument({ requests: out.requests, batchId: BATCH_ID, knownAt: KNOWN_AT });
+
+  const errors = validate(document, identityRequests);
+  check("the exported requests document satisfies pro-scout's contract",
+    errors.length === 0, errors.map((e) => `${e.path || "(root)"}: ${e.message}`).join("; "));
+
+  // The version string is the field that had already drifted, so pin that the
+  // producer emits one the consumer's pattern accepts rather than any string.
+  check("its schema_version is one the consumer will accept",
+    new RegExp(identityRequests.properties.schema_version.pattern).test(document.schema_version),
+    document.schema_version);
+
+  // And prove the check can fail: drop the join key the ledger reconciles on.
+  const { request_id: _dropped, ...withoutId } = document.requests[0];
+  const broken = { ...document, requests: [withoutId] };
+  check("a request with no request_id is refused by that contract",
+    validate(broken, identityRequests).length > 0);
 }
 
 // --- a document-scope team is never asserted about a player ----------------
