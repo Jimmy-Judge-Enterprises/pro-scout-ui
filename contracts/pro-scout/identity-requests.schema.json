@@ -1,0 +1,204 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "identity-requests.schema.json",
+  "title": "Pro-Scout Identity Requests Document",
+  "description": "The batch a capture canvas exports for every name it could NOT resolve against its own index. Pro-Scout is the consumer, so Pro-Scout declares what it is able to read; the producer vendors this file and validates its output against it, so neither side restates the other's shape. Required fields are only what Phase 1 genuinely needs -- request_id, which is the join key the search ledger quotes back, and player_name, which is the search input. Everything else is optional and additional properties are permitted throughout: the producer must stay free to add a field (team_hint_as_written arrived exactly that way) without the consumer refusing the batch. Definitions are inlined rather than referenced: the validator this contract is checked with implements no $ref, so an indirection would silently enforce nothing.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "batch_id",
+    "requests"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "description": "Producer's format version. The pattern admits any major version so this file does not churn; which majors are actually supported is the parser's call, and it says so by name when it refuses one.",
+      "pattern": "^pro-scout-ui\\.identity-requests\\.v[0-9]+$"
+    },
+    "batch_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "generated_at": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "producer_version": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "request_count": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0
+    },
+    "acknowledgement": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "reconcile_via": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "requests": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "request_id",
+          "player_name"
+        ],
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "batch_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "player_name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "team_hint": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "team_hint_as_written": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The spelling the source used, before the canvas normalised it to a club code. A relocation spelling is what tells a search the source is stale, so the code must not be the only thing that travels."
+          },
+          "team_hint_basis": {
+            "description": "Where a hint came from. Only an observed value may ever become a fact; a document-scope value describes the document, not the player; an analyst value was typed into the canvas. A basis outside this set means the producer changed its semantics, which is a reason to stop.",
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "observed",
+              "document",
+              "analyst",
+              null
+            ]
+          },
+          "position_hint": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "position_hint_basis": {
+            "description": "Where a hint came from. Only an observed value may ever become a fact; a document-scope value describes the document, not the player; an analyst value was typed into the canvas. A basis outside this set means the producer changed its semantics, which is a reason to stop.",
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "observed",
+              "document",
+              "analyst",
+              null
+            ]
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source_label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source_role": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source_basis": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "occurrences": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
+          },
+          "acknowledgement": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "retained_candidates": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "description": "Candidates the canvas held but could not choose between. Present only on a row it flagged for review.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "gsis_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "pattern": "^00-[0-9]{7}$"
+                },
+                "name": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "additionalProperties": true
+            }
+          },
+          "hint_conflict": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "A hint that contradicted the canvas's own index. It travels unresolved: the search needs to know the disagreement exists, not to have it decided for it.",
+            "additionalProperties": true
+          }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}
