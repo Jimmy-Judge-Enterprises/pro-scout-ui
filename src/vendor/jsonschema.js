@@ -23,11 +23,45 @@ function typeOk(value, type) {
   return list.some((t) => (TYPES[t] ? TYPES[t](value) : true));
 }
 
-/** Returns an array of { path, message }. Empty array means valid. */
-export function validate(value, schema, path = '') {
+// Resolve a local JSON pointer ("#/$defs/thing") against the root schema.
+// Returns undefined when it does not resolve, which the caller reports rather
+// than passing over: a $ref nobody follows is a rule that enforces nothing,
+// which is the failure this validator was found to have.
+function resolvePointer(root, ref) {
+  if (typeof ref !== 'string' || !ref.startsWith('#')) return undefined;
+  let node = root;
+  for (const raw of ref.slice(1).split('/').filter(Boolean)) {
+    const key = decodeURIComponent(raw).replace(/~1/g, '/').replace(/~0/g, '~');
+    if (!node || typeof node !== 'object' || !(key in node)) return undefined;
+    node = node[key];
+  }
+  return node;
+}
+
+/**
+ * Returns an array of { path, message }. Empty array means valid.
+ *
+ * `root` is the document "#/..." pointers resolve against; it defaults to the
+ * schema itself and is threaded through every recursion so a $ref inside a
+ * subschema still finds the top-level $defs.
+ */
+export function validate(value, schema, path = '', root = schema) {
   const errors = [];
   if (schema === true || schema === undefined) return errors;
   if (schema === false) return [{ path, message: 'schema forbids any value' }];
+
+  // A reference stands in for the schema it names. An external one -- a path to
+  // another file -- cannot be followed here: this validator is handed a schema
+  // object, not a location, and giving it filesystem reach would be a different
+  // contract. Report it rather than ignore it.
+  if (schema.$ref !== undefined) {
+    const target = resolvePointer(root, schema.$ref);
+    if (target === undefined) {
+      return [{ path, message: `cannot resolve $ref ${JSON.stringify(schema.$ref)}`
+        + (String(schema.$ref).startsWith('#') ? '' : ' (external references are not resolvable here; inline it or pre-resolve)') }];
+    }
+    return validate(value, target, path, root);
+  }
 
   if (schema.type !== undefined && !typeOk(value, schema.type)) {
     const got = value === null ? 'null' : Array.isArray(value) ? 'array' : typeof value;
@@ -88,7 +122,7 @@ export function validate(value, schema, path = '') {
       if (seen.size !== value.length) errors.push({ path, message: 'array items are not unique' });
     }
     if (schema.items) {
-      value.forEach((item, i) => errors.push(...validate(item, schema.items, `${path}[${i}]`)));
+      value.forEach((item, i) => errors.push(...validate(item, schema.items, `${path}[${i}]`, root)));
     }
   }
 
@@ -105,7 +139,7 @@ export function validate(value, schema, path = '') {
     }
     const props = schema.properties ?? {};
     for (const [key, sub] of Object.entries(props)) {
-      if (key in value) errors.push(...validate(value[key], sub, path ? `${path}.${key}` : key));
+      if (key in value) errors.push(...validate(value[key], sub, path ? `${path}.${key}` : key, root));
     }
     if (schema.additionalProperties === false) {
       for (const key of Object.keys(value)) {
@@ -115,21 +149,33 @@ export function validate(value, schema, path = '') {
       }
     } else if (TYPES.object(schema.additionalProperties)) {
       for (const [key, v] of Object.entries(value)) {
-        if (!(key in props)) errors.push(...validate(v, schema.additionalProperties, path ? `${path}.${key}` : key));
+        if (!(key in props)) errors.push(...validate(v, schema.additionalProperties, path ? `${path}.${key}` : key, root));
       }
     }
   }
 
-  for (const sub of schema.allOf ?? []) errors.push(...validate(value, sub, path));
+  for (const sub of schema.allOf ?? []) errors.push(...validate(value, sub, path, root));
 
   // if/then/else. The `if` subschema is a test, never a source of errors of its
   // own: only the branch it selects contributes. Three schemas here carry
   // conditional rules -- including nfl-player-factual-record -- and until this
   // was implemented every one of them applied to nothing.
   if (schema.if !== undefined) {
-    const matched = validate(value, schema.if, path).length === 0;
+    const matched = validate(value, schema.if, path, root).length === 0;
     const branch = matched ? schema.then : schema.else;
-    if (branch !== undefined) errors.push(...validate(value, branch, path));
+    if (branch !== undefined) errors.push(...validate(value, branch, path, root));
+  }
+
+  // anyOf: at least one branch accepts. oneOf: exactly one does -- two branches
+  // both accepting means the schema does not say what it appears to say.
+  if (Array.isArray(schema.anyOf) && !schema.anyOf.some((sub) => validate(value, sub, path, root).length === 0)) {
+    errors.push({ path, message: `value matches none of the ${schema.anyOf.length} anyOf branches` });
+  }
+  if (Array.isArray(schema.oneOf)) {
+    const accepted = schema.oneOf.filter((sub) => validate(value, sub, path, root).length === 0).length;
+    if (accepted !== 1) {
+      errors.push({ path, message: `value matches ${accepted} of the ${schema.oneOf.length} oneOf branches, expected exactly 1` });
+    }
   }
 
   return errors;

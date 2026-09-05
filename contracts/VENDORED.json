@@ -2,7 +2,7 @@
   "note": "Vendored upstream definitions: Gameplan's provider contracts (copied through pro-scout), pro-scout's team alias map, and the validator this repo checks them with. Do not edit by hand: re-copy from the upstream repo and refresh the hashes, which scripts/verify-contracts.mjs enforces. Paths are relative to the repository root.",
   "upstream_repo": "Jimmy-Judge-Enterprises/pro-scout",
   "upstream_subtree": "contracts/gameplan",
-  "upstream_commit": "2fe13d57285990cb1494d185c31dec73be0a362f",
+  "upstream_commit": "3136e4b80441f38db6d51eb66bc6f58902a3cfcc",
   "gameplan_commit": "b93b13c581105a731e69018623550a8b8a130022",
   "verified_unchanged_at": [
     {
@@ -20,7 +20,7 @@
     "contracts/gameplan/batch_manifest.schema.json": "6022a75699a718534bedf420ad2c103fbf29f14bd565a4dc6d86cf79c69ce193",
     "contracts/gameplan/facts/identity_reference.schema.json": "7593ab2965dcdb91056c4f304b26692f2dce56c0c332ca2bca8194e057dc0731",
     "contracts/gameplan/facts/depth_chart.schema.json": "355d885f8f2c4ead92434f5f2919497f58f6e417dbf78a13299535e88173e77a",
-    "src/vendor/jsonschema.js": "92b931bb4567d4d4432f4d76fdb6c569d44a9ee9f471433f08d0eb9a49216a75",
+    "src/vendor/jsonschema.js": "b1fb5d712ab67cb2d86b027afa7015ede09f1f9fe2de1cff9315474b5276e59c",
     "contracts/pro-scout/team-aliases.json": "b1f34bda01485d53aafdf373d480b182b8e28a5d4c88c1c457aa9ad28537295d",
     "contracts/pro-scout/identity-requests.schema.json": "2bf7a1a4f23ae96509aff212b49da9fd9eccb652581fb42092a4db648a58deb6"
   }
