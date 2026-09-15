@@ -2,18 +2,60 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://gameplan.local/schemas/ingestion/facts/depth_chart.schema.json",
   "title": "Depth Chart Facts",
-  "description": "Source-observed team depth-chart placement. Preserve source ordering and role labels rather than normalizing away distinctions.",
+  "description": "Source-observed team depth-chart placement. Preserve source ordering and role labels rather than normalizing away distinctions. ONE ROW PER PLAYER PER CLUB PER SEASON: a player must never appear twice. A return job is carried as a `role` on the player's single row, not as a second row in a KR/PR position group -- decided 2026-08-28, see BL-038. The alternative put the same man on the board twice and forced every consumer to decide whether to sum him.",
   "type": "object",
-  "required": ["team", "position_group", "depth_order"],
+  "required": [
+    "team",
+    "position_group",
+    "depth_order"
+  ],
   "properties": {
-    "team": {"type": "string", "minLength": 2, "maxLength": 4},
-    "position_group": {"type": "string", "minLength": 1},
-    "role": {"type": ["string", "null"], "description": "Source role label such as X, Z, SLOT, RB, 3DRB, TE, etc."},
-    "depth_order": {"type": "integer", "minimum": 1, "maximum": 20},
-    "roster_status": {"type": ["string", "null"]},
-    "starter_flag": {"type": ["boolean", "null"]},
-    "package": {"type": ["string", "null"], "description": "Optional personnel/package context when the source distinguishes it."},
-    "notes": {"type": ["string", "null"]}
+    "team": {
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 4
+    },
+    "position_group": {
+      "type": "string",
+      "minLength": 1
+    },
+    "role": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Source role label such as X, Z, SLOT, RB, 3DRB, TE, LWR, SWR, RWR -- and KR or PR where the source states a return job. The return job lives HERE rather than in `position_group`, so that a returner occupies one row and one roster identity. A returner who appears on no offensive chart still takes exactly one row, carrying his return role; he is not duplicated and he is not omitted."
+    },
+    "depth_order": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 20
+    },
+    "roster_status": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "starter_flag": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "package": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Optional personnel/package context when the source distinguishes it."
+    },
+    "notes": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
   },
   "additionalProperties": false
 }

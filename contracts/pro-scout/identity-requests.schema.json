@@ -84,7 +84,7 @@
               "string",
               "null"
             ],
-            "description": "The spelling the source used, before the canvas normalised it to a club code. A relocation spelling is what tells a search the source is stale, so the code must not be the only thing that travels."
+            "description": "The spelling the source used, before the canvas normalised it to a pro team code. A relocation spelling is what tells a search the source is stale, so the code must not be the only thing that travels."
           },
           "team_hint_basis": {
             "description": "Where a hint came from. Only an observed value may ever become a fact; a document-scope value describes the document, not the player; an analyst value was typed into the canvas. A basis outside this set means the producer changed its semantics, which is a reason to stop.",
