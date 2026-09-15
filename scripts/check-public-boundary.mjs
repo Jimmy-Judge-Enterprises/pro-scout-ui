@@ -68,9 +68,17 @@ const FORBIDDEN_JUDGMENTS = [
   [/"owner_objective/, "owner objective state"],
 ];
 
-// Where a judgment may be NAMED rather than carried. pro-scout exempts
-// contracts/, schema/ and docs/; this repository has no schema/ or docs/, and
-// the two files that describe what it forbids sit at the root.
+// Where a JUDGMENT may be NAMED rather than carried. Judgments only: an
+// identifier is refused everywhere in this repository, including here.
+//
+// pro-scout exempts contracts/, schema/ and docs/ and, since its #45, exempts
+// them for IDENTIFIERS too -- because neither it nor Gameplan will ever be
+// public. This repository is public, so that exemption stops at the boundary
+// and identifiers stay refused in contracts/. The divergence is deliberate;
+// test/public-boundary.test.mjs states why at the case that guards it.
+//
+// This repository has no schema/ or docs/, and the two files that describe what
+// it forbids sit at the root.
 const SHAPE_PATHS = ["contracts/", "README.md", "CLAUDE.md"];
 
 // This file names every pattern it forbids, and its test plants them

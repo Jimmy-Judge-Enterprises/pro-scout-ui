@@ -49,9 +49,25 @@ for (const [file, content, description] of LEAKS) {
     `NOT CAUGHT: ${description} in ${file} -- ${content}`);
 }
 
-// An identifier is forbidden even inside a contract: a schema has no reason to
-// carry a real owner id, and an example that does is a leak wearing
-// documentation's clothes.
+// AN IDENTIFIER IS FORBIDDEN INSIDE A CONTRACT, AND THIS REPOSITORY DIVERGES
+// FROM PRO-SCOUT ON PURPOSE. DO NOT ALIGN THEM.
+//
+// The original reason was "a schema has no reason to carry a real owner id, and
+// an example that does is a leak wearing documentation's clothes". pro-scout
+// retired that reasoning in its #45, on the grounds that neither it nor
+// Gameplan will ever be public, so there is no audience for a leak. It now
+// permits identifiers in contracts/, schema/ and docs/, and refuses them only
+// where data is persisted. For pro-scout that is sound.
+//
+// It does not reach here, for one reason that no argument about intent can
+// change: THIS REPOSITORY IS PUBLIC. There is an audience. And contracts/ is
+// not incidental to that -- VENDORED.json names pro-scout as upstream_repo and
+// contracts/gameplan as upstream_subtree, so this directory is copied out of
+// the repository that just relaxed the rule, into the one that cannot.
+//
+// So this case is the last check between an identifier and the open internet.
+// If someone reconciles the two checkers because they look like drift, this is
+// the line that must not move.
 check("catches an owner identifier inside a contract example",
   scanContent("contracts/gameplan/player_observation.schema.json",
     '{"examples": [{"owner_id": "OWNER-JJ-01"}]}').length > 0);
