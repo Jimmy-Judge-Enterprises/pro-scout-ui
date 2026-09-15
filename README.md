@@ -81,18 +81,28 @@ rest at load, so a value cannot disagree with itself.
 No dependencies and no test framework, the same way pro-scout runs its own:
 
 ```sh
-node scripts/verify-contracts.mjs   # vendored contracts are byte-identical
-node test/contract.test.mjs         # the boundary rules built on them still hold
-node test/team-aliases.test.mjs     # aliases point at teams the manifest carries
-node test/player-table.test.mjs     # held and available partition one row shape
-node test/team-analysis.test.mjs    # every finding derived, none of them a judgement
-node test/table-sort.test.mjs       # sorting handles absent values
-node test/anatomy-panel.test.mjs    # gauges computed from a real cohort, or not drawn
-node test/serve.test.mjs            # the preview server stays inside its root
+node scripts/check-public-boundary.mjs  # no owner, franchise or league data is tracked
+node test/public-boundary.test.mjs      # and that check can actually fail
+node scripts/verify-contracts.mjs       # vendored contracts are byte-identical
+node test/contract.test.mjs             # the boundary rules built on them still hold
+node test/team-aliases.test.mjs         # aliases point at teams the manifest carries
+node test/player-table.test.mjs         # held and available partition one row shape
+node test/team-analysis.test.mjs        # every finding derived, none of them a judgement
+node test/table-sort.test.mjs           # sorting handles absent values
+node test/anatomy-panel.test.mjs        # gauges computed from a real cohort, or not drawn
+node test/serve.test.mjs                # the preview server stays inside its root
 ```
 
-Both run in CI on every push. The tests fabricate no identities — every `gsis_id`
-and name they use is read from this repo's own player manifest.
+All of them run in CI on every push, in that order and with
+`if: ${{ !cancelled() }}` on every step after the first, so no failing check can
+skip the ones below it — a skipped step reports no result, and no result reads
+as a pass. The boundary check goes first because this repository is the public
+one: it is the only check whose failure means something has already been
+published.
+
+The tests fabricate no identities — every `gsis_id` and name they use is read
+from this repo's own player manifest, and the planted leak samples in
+`test/public-boundary.test.mjs` exist only as in-memory strings.
 
 ## Running locally
 
