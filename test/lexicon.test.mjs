@@ -18,6 +18,7 @@ import path from "node:path";
 
 import {
   scanFiles, isExempt, verdict, byFile, BANNED, trackedFiles, readBaseline, ROOT,
+  newTally, describeScope,
 } from "../scripts/check-lexicon.mjs";
 
 const fixture = fs.mkdtempSync(path.join(os.tmpdir(), "lexicon-ui-"));
@@ -116,6 +117,47 @@ check("per-file counts are sorted worst-first", () => {
     byFile([{ file: "b.md" }, { file: "a.md" }, { file: "a.md" }]),
     [{ file: "a.md", count: 2 }, { file: "b.md", count: 1 }],
   );
+});
+
+// --- the scan reports what it scanned, not only what it found -----------------------
+//
+// The output used to be "N occurrence(s) in M file(s)" and nothing else, where M
+// counts files WITH findings. A scan of an empty file list therefore printed
+// "0 occurrence(s) in 0 file(s)" -- byte for byte what a genuine clean pass
+// prints. trackedFiles reads `git ls-files`, so a run made before `git add`
+// scans a tree without the file just written and reports clean.
+
+check("the tally counts every disposition, not just the interesting one", () => {
+  const t = newTally();
+  const files = [
+    write("scope/prose.md", "a FRANCHISE\n"),
+    write("scope/bad.md", "a club\n"),
+    write("scope/blob.bin", "club\0club\n"),
+    "contracts/vendored.json",
+    "scope/gone.md",
+  ];
+  assert.equal(scanFiles(fixture, files, t).length, 1);
+  assert.deepEqual(t, { inspected: 2, exempt: 1, binary: 1, unreadable: 1 });
+});
+
+check("an empty scan cannot be mistaken for a clean one", () => {
+  const t = newTally();
+  assert.deepEqual(scanFiles(fixture, [], t), []);
+  assert.equal(describeScope(t, 0), "0 of 0 tracked files inspected (0 binary, 0 exempt)");
+  // The old output for this same situation. Still true, still useless alone.
+  assert.equal(`0 occurrence(s) in ${byFile([]).length} file(s)`, "0 occurrence(s) in 0 file(s)");
+});
+
+check("a real scan says how many files it read", () => {
+  const t = newTally();
+  scanFiles(fixture, [write("scope/x.md", "a FRANCHISE\n")], t);
+  assert.equal(describeScope(t, 9), "1 of 9 tracked files inspected (0 binary, 0 exempt)");
+});
+
+check("an unreadable file is shouted, not folded into the total", () => {
+  const t = newTally();
+  scanFiles(fixture, ["scope/missing-entirely.md"], t);
+  assert.match(describeScope(t, 1), /1 UNREADABLE/);
 });
 
 // --- and the case that points it at this repository ---------------------------------

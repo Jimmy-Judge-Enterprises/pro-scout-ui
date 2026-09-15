@@ -1,0 +1,112 @@
+#!/usr/bin/env bash
+#
+# Run this repository's guards before the push leaves the machine.
+#
+#   scripts/check-lexicon.mjs         the retired term
+#   scripts/check-public-boundary.mjs owner identifiers, franchise data, valuations
+#
+# WHY THIS IS NOT A COPY OF PRO-SCOUT'S HOOK. That one exists mainly to refuse a
+# direct push to main, because GitHub withholds ruleset enforcement from private
+# repositories on the Free plan, so pro-scout's ruleset is stuck in "evaluate"
+# and the server accepts anything that reaches it. That argument does not reach
+# here: this repository is PUBLIC, its ruleset enforces, and `main` really is
+# protected -- measured, not assumed (`protected: true` here, `false` there).
+#
+# So this hook does not duplicate a refusal the server will actually make. A
+# client-side guard that claims to be load-bearing when the server already says
+# no is a false claim, and this repository has spent enough effort today on
+# controls that look enforced and are not.
+#
+# What it does instead is move the CHECKS earlier. Both read `git ls-files`,
+# which is HEAD, so running them before `git add` scans a tree that does not
+# contain the file you just wrote -- and prints a pass. Pre-push is the first
+# moment where what the checkers read and what the server will receive are the
+# same tree.
+#
+# Enable it, once per clone:
+#
+#     git config core.hooksPath .githooks
+#
+# Git will not do that for you, and should not: a repository that could arm its
+# own hooks could run arbitrary code on checkout.
+#
+# When you mean it:
+#
+#     SKIP_PUSH_CHECKS=1 git push
+#
+# Tested by test/pre-push.test.mjs, because a guard that has only ever allowed
+# things is indistinguishable from one that cannot refuse.
+
+set -u
+
+ZERO='0000000000000000000000000000000000000000'
+REPO_ROOT=$(cd "$(dirname "$0")/.." && pwd)
+CHECKERS='scripts/check-lexicon.mjs scripts/check-public-boundary.mjs'
+
+# git feeds one line per ref:  <local_ref> <local_sha> <remote_ref> <remote_sha>
+refs=$(cat)
+
+if [ "${SKIP_PUSH_CHECKS:-}" = '1' ]; then
+  echo 'pre-push: SKIP_PUSH_CHECKS=1 -- the guards did not run.' >&2
+  exit 0
+fi
+
+# A checker that is not there is NOT a checker that passed, and neither is a node
+# that is not installed. Both read as success under `|| true`, and that silence
+# is the whole defect this hook exists to shorten.
+if ! command -v node >/dev/null 2>&1; then
+  cat >&2 <<'MSG'
+
+  pre-push: node is not on PATH, so the guards could not run.
+
+  Refused rather than skipped: a check that did not run is not a check that
+  passed. Install node, or push with
+
+      SKIP_PUSH_CHECKS=1 git push
+
+  and expect CI to run them for you.
+
+MSG
+  exit 1
+fi
+
+for checker in $CHECKERS; do
+  if [ ! -f "$REPO_ROOT/$checker" ]; then
+    echo "pre-push: $checker is missing -- refusing rather than treating an" >&2
+    echo "          absent check as a passing one." >&2
+    exit 1
+  fi
+done
+
+# The scan covers the checked-out HEAD. That is the right tree when pushing the
+# branch you are on, which is the normal case. When it is not, say so: "the
+# checks passed" about a different tree is worth less than it looks.
+head_sha=$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo '')
+pushed_head=''
+while read -r local_ref local_sha remote_ref remote_sha; do
+  [ -n "${local_sha:-}" ] || continue
+  [ "$local_sha" = "$ZERO" ] && continue
+  [ "$local_sha" = "$head_sha" ] && pushed_head='yes'
+done <<< "$refs"
+if [ -n "$head_sha" ] && [ -z "$pushed_head" ] && [ -n "${refs//[[:space:]]/}" ]; then
+  echo 'pre-push: none of the pushed commits is HEAD; the scans below cover the' >&2
+  echo '          checked-out tree, not what is being pushed.' >&2
+fi
+
+status=0
+for checker in $CHECKERS; do
+  node "$REPO_ROOT/$checker" || status=1
+done
+
+if [ "$status" -ne 0 ]; then
+  cat >&2 <<'MSG'
+
+  pre-push: refused. One of this repository's guards said no.
+
+  This repository is public. Fix it here rather than discovering it in CI, or
+  push anyway with SKIP_PUSH_CHECKS=1 if you know why the guard is wrong.
+
+MSG
+fi
+
+exit "$status"

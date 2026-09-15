@@ -55,6 +55,10 @@ jobs:
         if: ${{ !cancelled() }}
         run: node test/lexicon.test.mjs
 
+      - name: The pre-push hook can refuse
+        if: ${{ !cancelled() }}
+        run: node test/pre-push.test.mjs
+
       - name: Boundary behaviour holds
         if: ${{ !cancelled() }}
         run: node test/contract.test.mjs
