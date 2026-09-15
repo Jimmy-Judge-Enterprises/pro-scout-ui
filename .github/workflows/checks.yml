@@ -47,6 +47,14 @@ jobs:
         if: ${{ !cancelled() }}
         run: node scripts/verify-contracts.mjs
 
+      - name: A KCFFL side is a franchise, an NFL side is a pro team
+        if: ${{ !cancelled() }}
+        run: node scripts/check-lexicon.mjs
+
+      - name: The lexicon check can fail
+        if: ${{ !cancelled() }}
+        run: node test/lexicon.test.mjs
+
       - name: Boundary behaviour holds
         if: ${{ !cancelled() }}
         run: node test/contract.test.mjs

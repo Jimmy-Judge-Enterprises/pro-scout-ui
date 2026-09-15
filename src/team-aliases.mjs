@@ -1,16 +1,16 @@
 // Team identity for search and for extraction. Two layers, because the two
 // consumers match differently and conflating them breaks one of them.
 //
-// IDENTITY_ALIASES are alternate spellings of a club's code. They are matched
+// IDENTITY_ALIASES are alternate spellings of a pro team's code. They are matched
 // one token at a time, which is what the intake extractor needs: it uses them
-// to know that a bare "ARZ" in a capture is a club and not somebody's name.
+// to know that a bare "ARZ" in a capture is a pro team and not somebody's name.
 //
 // SEARCH_ALIASES are what a person types into the search box -- nicknames and
 // city names. They are matched against a whole query and never against a single
 // token, and that restriction is load-bearing rather than tidy. Three of them
 // are also parts of real player names in this manifest: "dallas" (Dallas
 // Goedert), "washington" (seven players) and "kc". A token-level matcher fed
-// these would decide "Dallas" is a club, break the name run before "Goedert",
+// these would decide "Dallas" is a pro team, break the name run before "Goedert",
 // and silently drop the player -- the same failure as treating an ordinary word
 // as a stopword. test/team-aliases.test.mjs pins the separation.
 //
@@ -21,7 +21,7 @@
 // list to nothing AND skips the substring fallback, so the search gets worse
 // rather than better.
 
-// Alternate club codes this repo owns: relocations, renames and provider
+// Alternate pro team codes this repo owns: relocations, renames and provider
 // spellings met here that upstream has not enumerated. Upstream's rule is
 // "enumerate, do not infer", so they are listed rather than derived, and they
 // are candidates to contribute back.
@@ -105,7 +105,7 @@ function rebuildQueryIndex() {
 rebuildQueryIndex();
 
 /**
- * Take the club codes pro-scout declares, from the vendored copy of its
+ * Take the pro team codes pro-scout declares, from the vendored copy of its
  * config/team-aliases.json. This is the only place those values enter, so they
  * cannot drift from the file that owns them. Call it before anything reads the
  * table; if the file never arrives the codes it carries are simply absent,
@@ -119,7 +119,7 @@ export function adoptVendoredAliases(document) {
   return identity;
 }
 
-/** The merged club-code table: repo-owned entries plus whatever was adopted. */
+/** The merged pro team-code table: repo-owned entries plus whatever was adopted. */
 export function identityAliases() {
   return identity;
 }
@@ -135,7 +135,7 @@ export function resolveTeamAlias(query) {
 
 /**
  * The canonical team_id for a single token, for callers scanning text where a
- * token is either a club code or part of somebody's name. Deliberately blind to
+ * token is either a pro team code or part of somebody's name. Deliberately blind to
  * nicknames and city names: see the note at the top of this file.
  */
 export function teamTokenCode(token) {

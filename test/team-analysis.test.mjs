@@ -52,7 +52,7 @@ const nfcWest = groups.find((g) => g.label === "NFC West").teams.map((t) => t.te
 assert.ok(nfcWest.includes("LAR") && !nfcWest.includes("LA"), `NFC West: ${nfcWest}`);
 assert.ok(nfcWest.includes("ARI") && !nfcWest.includes("ARZ"), `NFC West: ${nfcWest}`);
 
-// --- coverage is about the capture, not the club ------------------------------------
+// --- coverage is about the capture, not the pro team ------------------------------------
 
 {
   const cov = coverage(league[0], league);
@@ -72,7 +72,7 @@ assert.ok(nfcWest.includes("ARI") && !nfcWest.includes("ARZ"), `NFC West: ${nfcW
   const odd = { ...league[0], team_id: "ZZZ", inputs: { ...league[0].inputs, staff: false } };
   const oddCov = coverage(odd, league);
   assert.ok(oddCov.missing.includes("staff"));
-  assert.equal(oddCov.uniform, false, "a gap peculiar to one club was called league-wide");
+  assert.equal(oddCov.uniform, false, "a gap peculiar to one pro team was called league-wide");
 }
 
 // --- personnel is a rank of a fact, never of a team ---------------------------------

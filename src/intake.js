@@ -71,9 +71,9 @@ const STOP = new Set(
    "suspended limited retired undrafted").split(" ")
 );
 
-// Alternate club codes live in team-aliases.mjs, which is also what the Teams
+// Alternate pro team codes live in team-aliases.mjs, which is also what the Teams
 // search uses. Only the token-safe layer reaches here: a nickname would be
-// matched against single words and would decide "Dallas" is a club rather than
+// matched against single words and would decide "Dallas" is a pro team rather than
 // half of Dallas Goedert's name.
 
 const KIND_LABELS = {
@@ -103,9 +103,9 @@ function buildIndex({ players = [], teams = [] }) {
     if (index.teams.has(canonical)) index.teams.set(alias, canonical);
   }
 
-  // A club code that is also somebody's given name cannot simply be struck out
+  // A pro team code that is also somebody's given name cannot simply be struck out
   // of a line. KC Concepcion is a real receiver whose first name is a real team
-  // id, and treating it as a club broke the name run and dropped him with no
+  // id, and treating it as a pro team broke the name run and dropped him with no
   // error. Which codes collide is read from the manifest rather than listed
   // here, so a future signing fixes itself.
   index.softTeams = new Set();
@@ -118,13 +118,13 @@ function buildIndex({ players = [], teams = [] }) {
   }
   for (const code of index.teams.keys()) if (nameTokens.has(code)) index.softTeams.add(code);
 
-  // Club names are blocked as whole phrases rather than as tokens: blocking
+  // Pro team names are blocked as whole phrases rather than as tokens: blocking
   // "Green" outright would also lose A.J. Green.
   index.phrases = new Set();
   for (const team of teams) {
     const words = String(team.name ?? "").split(" ").filter(Boolean);
     if (!words.length) continue;
-    // Every run of words inside a club name, not just the whole phrase: a
+    // Every run of words inside a pro team name, not just the whole phrase: a
     // tokeniser that loses the first word must not leave "City Chiefs" behind.
     for (let start = 0; start < words.length; start++) {
       for (let end = start + 1; end <= words.length; end++) {
@@ -268,7 +268,7 @@ function nameTokenKind(token) {
   if (!/^[A-Z][A-Za-z.'\u2019-]*$/.test(cleaned)) return "no";
   const flat = cleaned.replace(/[^A-Za-z]/g, "").toUpperCase();
   if (!flat || POSITIONS.has(flat)) return "no";
-  // A colliding club code behaves like an ordinary word that is also a name:
+  // A colliding pro team code behaves like an ordinary word that is also a name:
   // it belongs to the run only when a real name follows it.
   if (index.teams.has(flat)) return index.softTeams.has(flat) ? "soft" : "no";
   const word = flat.toLowerCase();
@@ -343,8 +343,8 @@ function hintsFromLine(line) {
   for (let i = 0; i < tokens.length; i++) {
     const flat = tokens[i].replace(/[^A-Za-z]/g, "").toUpperCase();
     if (flat.length < 2) continue;
-    // A token the scan reads as part of a name is not also a club hint, or
-    // "KC Concepcion CLE" would report his club as KC.
+    // A token the scan reads as part of a name is not also a pro team hint, or
+    // "KC Concepcion CLE" would report his pro team as KC.
     if (isNameToken(tokens[i], tokens[i + 1])) continue;
     if (!position && POSITIONS.has(flat)) position = flat;
     if (!team && index.teams.has(flat)) {
@@ -462,7 +462,7 @@ function readJson(text) {
     observed_at: str(data.source_observation_date),
     checked_at: str(data.source_checked_at),
     // Canonical: this one is read as a fact about the document's subject, and
-    // the fact domains downstream are validated against the club registry.
+    // the fact domains downstream are validated against the pro team registry.
     team: fileTeam.code,
   };
   return { records, declared: Object.values(declared).some(Boolean) ? declared : null };

@@ -9,7 +9,7 @@
 //
 //   A reader clicking a column header is a different thing entirely. He is asking
 //   a question of data already in front of him, the answer is his alone, and no
-//   ordering leaves the page. So the sortable columns are public facts -- club and
+//   ordering leaves the page. So the sortable columns are public facts -- pro team and
 //   the season last played -- and nothing here sorts by a value this system
 //   computed about a player.
 //
@@ -32,7 +32,7 @@
 // An absent SEASON participates: "has not played" is a real position on a scale of
 // seasons, before the earliest, so it leads ascending and trails descending.
 //
-// An absent CLUB does not. It is a gap in the record rather than a point on a
+// An absent PRO TEAM does not. It is a gap in the record rather than a point on a
 // scale, and it belongs at the bottom either way -- a block of blanks at the top
 // of a descending sort reads as a finding when it is an absence.
 export const SORTABLE = Object.freeze({

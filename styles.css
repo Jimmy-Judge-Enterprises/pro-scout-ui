@@ -319,7 +319,7 @@ h1 { margin: 2px 0 0; font-size: 22px; }
 .player-name { text-align: left; font-weight: 600; }
 .player-table .numeric { font-variant-numeric: tabular-nums; color: #a9bbd0; }
 
-/* A club change is surfaced, never suppressed: the manifest used to withhold
+/* A pro team change is surfaced, never suppressed: the manifest used to withhold
    these players entirely, which hid exactly the ones who had moved. */
 .moved-flag { display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 999px; background: #1d3455; color: #9dc0f0; font-size: 10px; letter-spacing: .04em; text-transform: uppercase; }
 .presence-tag { color: #8fa4bf; font-style: italic; }

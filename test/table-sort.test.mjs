@@ -80,17 +80,17 @@ for (const spec of Object.values(SORTABLE)) {
 {
   const asc = sortRows(players, "team", "asc");
   const codes = asc.map((p) => p.team_id).filter(Boolean);
-  assert.deepEqual(codes, [...codes].sort((a, b) => a.localeCompare(b)), "clubs are not in order");
+  assert.deepEqual(codes, [...codes].sort((a, b) => a.localeCompare(b)), "pro teams are not in order");
   assert.equal(asc.length, players.length);
 
-  // A missing club sorts last in BOTH directions. It is a missing value, not an
+  // A missing pro team sorts last in BOTH directions. It is a missing value, not an
   // extreme one, and a column of blanks at the top reads as a finding.
   const mixed = [
     { name: "B", team_id: "BUF" }, { name: "Blank", team_id: null }, { name: "A", team_id: "ARI" },
   ];
   assert.equal(sortRows(mixed, "team", "asc").at(-1).name, "Blank");
   assert.equal(sortRows(mixed, "team", "desc").at(-1).name, "Blank",
-    "an absent club led the descending sort instead of trailing it");
+    "an absent pro team led the descending sort instead of trailing it");
 }
 
 // --- position ---------------------------------------------------------------------------
@@ -108,7 +108,7 @@ for (const spec of Object.values(SORTABLE)) {
   assert.ok(positions.length > 3, `only ${positions.length} positions; the sort is unexercised`);
   assert.equal(asc.find((p) => p.position).position, [...positions].sort()[0]);
 
-  // A row with no position sorts to the bottom either way, like an absent club.
+  // A row with no position sorts to the bottom either way, like an absent pro team.
   const mixed = [
     { name: "W", position: "WR" }, { name: "Blank", position: null }, { name: "Q", position: "QB" },
   ];
@@ -119,10 +119,10 @@ for (const spec of Object.values(SORTABLE)) {
 // --- ties are stable ----------------------------------------------------------------------
 
 {
-  // Every Texan shares a club. Reversing direction must not shuffle them, or the
+  // Every Texan shares a pro team. Reversing direction must not shuffle them, or the
   // reader watching the table flip sees motion that means nothing.
   const texans = players.filter((p) => p.team_id === "HOU");
-  assert.ok(texans.length > 5, "too few shared-club rows to test tie stability");
+  assert.ok(texans.length > 5, "too few shared-pro team rows to test tie stability");
   const inAsc = sortRows(texans, "team", "asc").map((p) => p.name);
   const inDesc = sortRows(texans, "team", "desc").map((p) => p.name);
   assert.deepEqual(inAsc, inDesc, "rows equal on the sorted column moved when direction flipped");

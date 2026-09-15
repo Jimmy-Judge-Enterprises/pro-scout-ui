@@ -4,8 +4,8 @@
 // The manifest carries captured players and addable ones in ONE list under a
 // `presence` field, because they are the same table with one column different.
 // Splitting them into two files would let the two drift into different row
-// shapes, which is how a column ends up holding current clubs for one half and
-// last-played clubs for the other.
+// shapes, which is how a column ends up holding current pro teams for one half and
+// last-played pro teams for the other.
 //
 // Kept out of app.js so it can be tested without a DOM. app.js reads the
 // document at module scope, so anything importable from a bare-node test has to
@@ -32,7 +32,7 @@ export function filterByPresence(entities, presence) {
 // The `moved` flag is the point of the whole change. team_id is where a player
 // is NOW; team_last_played is where his last snaps were. The manifest used to
 // compare the two and withhold anyone whose answers differed, which hid exactly
-// the players who had changed clubs. Here the difference is the headline.
+// the players who had changed pro teams. Here the difference is the headline.
 export function playerRow(item) {
   const team = item.team_id ?? "";
   const lastTeam = item.team_last_played ?? "";
