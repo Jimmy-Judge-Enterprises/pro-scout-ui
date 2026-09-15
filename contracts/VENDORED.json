@@ -2,8 +2,8 @@
   "note": "Vendored upstream definitions: Gameplan's provider contracts (copied through pro-scout), pro-scout's team alias map, and the validator this repo checks them with. Do not edit by hand: re-copy from the upstream repo and refresh the hashes, which scripts/verify-contracts.mjs enforces. Paths are relative to the repository root.",
   "upstream_repo": "Jimmy-Judge-Enterprises/pro-scout",
   "upstream_subtree": "contracts/gameplan",
-  "upstream_commit": "3136e4b80441f38db6d51eb66bc6f58902a3cfcc",
-  "gameplan_commit": "b93b13c581105a731e69018623550a8b8a130022",
+  "upstream_commit": "0aef46b0105e7f94f55c43c26ced2b2f55f91997",
+  "gameplan_commit": "2c5d203ba3e6f330f9d0e2a2d3a715eb341899ab",
   "verified_unchanged_at": [
     {
       "gameplan_commit": "2c7c8dd6e317dbd1158cc9bb8d75790e1d075c0a",
@@ -16,12 +16,12 @@
   ],
   "file_count": 7,
   "files": {
-    "contracts/gameplan/player_observation.schema.json": "c139fd45c1c1b3522ab0829b0012c3e8ab02aabf97a51fb3bdd3000477e348a2",
+    "contracts/gameplan/player_observation.schema.json": "9773757a26391137e2746b0212437dee7bfb2da4ef85989ee103aa03cb85cfb1",
     "contracts/gameplan/batch_manifest.schema.json": "6022a75699a718534bedf420ad2c103fbf29f14bd565a4dc6d86cf79c69ce193",
     "contracts/gameplan/facts/identity_reference.schema.json": "7593ab2965dcdb91056c4f304b26692f2dce56c0c332ca2bca8194e057dc0731",
-    "contracts/gameplan/facts/depth_chart.schema.json": "355d885f8f2c4ead92434f5f2919497f58f6e417dbf78a13299535e88173e77a",
+    "contracts/gameplan/facts/depth_chart.schema.json": "e72711fe0644eb2283ba362362e0655cad61ae301798570d0db984896e7fab3a",
     "src/vendor/jsonschema.js": "b1fb5d712ab67cb2d86b027afa7015ede09f1f9fe2de1cff9315474b5276e59c",
     "contracts/pro-scout/team-aliases.json": "b1f34bda01485d53aafdf373d480b182b8e28a5d4c88c1c457aa9ad28537295d",
-    "contracts/pro-scout/identity-requests.schema.json": "2bf7a1a4f23ae96509aff212b49da9fd9eccb652581fb42092a4db648a58deb6"
+    "contracts/pro-scout/identity-requests.schema.json": "d754d5844d7e94fee72ef32b4f3b8ecf5170c196744f8721fbc8ed67885de685"
   }
 }
