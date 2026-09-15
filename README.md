@@ -67,7 +67,7 @@ batch says so rather than passing for a fresh read.
 ## Contracts
 
 `contracts/gameplan/` holds Gameplan's provider contracts, vendored through
-pro-scout; `contracts/pro-scout/team-aliases.json` is pro-scout's club-code alias
+pro-scout; `contracts/pro-scout/team-aliases.json` is pro-scout's pro team-code alias
 map; `src/vendor/jsonschema.js` is the validator upstream CI uses. They are
 copies, not sources: upstream owns them and this repo never edits them.
 `contracts/VENDORED.json` records the upstream commits and a SHA-256 per file.

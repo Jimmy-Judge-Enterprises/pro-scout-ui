@@ -1,0 +1,20 @@
+# contracts/VENDORED.json pins each vendored file by RAW sha256, and
+# scripts/verify-contracts.mjs recomputes it from the file on disk. The recorded
+# hashes are of LF content, so a checkout that translates line endings changes the
+# bytes and breaks every pin at once -- which is what happened here: on Windows
+# with core.autocrlf=true, all seven verified files reported drift, and the check
+# could not pass on any Windows clone. CI never saw it because Linux converts
+# nothing. The same defect hit pro-scout's archived snapshots (its #35).
+#
+# So the hashed paths are pinned to LF everywhere. This is not a style rule; it
+# is what makes the hash mean the same thing on every machine.
+contracts/** text eol=lf
+src/vendor/** text eol=lf
+
+# The rest of the repository, kept consistent with what CI and the hashes assume.
+*.mjs  text eol=lf
+*.js   text eol=lf
+*.json text eol=lf
+*.css  text eol=lf
+*.html text eol=lf
+*.md   text eol=lf

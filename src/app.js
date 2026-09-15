@@ -68,7 +68,7 @@ function storage() {
 }
 
 async function loadManifests() {
-  // The vendored alias map travels with the manifests: club codes must be
+  // The vendored alias map travels with the manifests: pro team codes must be
   // resolvable before anything is searched or extracted, and pro-scout's copy
   // is the authority for the ones it declares.
   const [teams, players, aliases] = await Promise.all([
@@ -198,7 +198,7 @@ function renderPlayerTable(entities) {
       <th scope="row" class="player-name">${escapeHtml(cells.name)}</th>
       <td>${escapeHtml(cells.position)}</td>
       <td>${escapeHtml(cells.team)}${cells.moved
-        ? ' <span class="moved-flag" title="Changed club since his last played season">moved</span>'
+        ? ' <span class="moved-flag" title="Changed pro team since his last played season">moved</span>'
         : ""}</td>
       <td class="numeric">${cells.lastPlayed ? escapeHtml(cells.lastPlayed) : "&mdash;"}</td>
       <td>${cells.hasCapture
@@ -218,7 +218,7 @@ function renderList() {
   els.search.placeholder = state.view === "teams" ? "Search teams" : "Search players";
   els.list.innerHTML = "";
 
-  // Teams are grouped into their divisions, which is how anyone looking for a club
+  // Teams are grouped into their divisions, which is how anyone looking for a pro team
   // actually looks for one -- nobody scans an alphabetical list of 32 to find the
   // AFC East. Players stay flat: 1,159 rows in eight groups would be eight long
   // lists rather than a navigable index.

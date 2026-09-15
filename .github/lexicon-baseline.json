@@ -1,0 +1,6 @@
+{
+  "note": "Occurrences of \"club\" outside the exempt paths. May shrink, never grow. See scripts/check-lexicon.mjs for what is exempt and why.",
+  "generated_by": "scripts/check-lexicon.mjs --update-baseline",
+  "count": 0,
+  "files": []
+}
