@@ -72,8 +72,8 @@ function depthChartFacts(row, source) {
 
 // The fallback domain: what the source said about who this is. The team is
 // deliberately absent unless it was observed beside the player. A team named in
-// a document header describes the document, not the player's current club, and
-// a player can leave the club whose chart still lists him.
+// a document header describes the document, not the player's current pro team, and
+// a player can leave the pro team whose chart still lists him.
 // Facts are what a source stated. A hint an analyst supplied to narrow a
 // search is not a fact about the player, however well founded, so it never
 // reaches this side of the boundary -- it travels on the request instead.

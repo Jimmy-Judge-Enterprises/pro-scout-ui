@@ -52,7 +52,7 @@ export function coverage(team, league) {
 
   // If every team is missing the same things, that is a fact about the CAPTURE,
   // not about this team, and saying "4 of 7" without saying so invites a reader
-  // to think he has found a gap peculiar to the club he is looking at.
+  // to think he has found a gap peculiar to the pro team he is looking at.
   const others = league.filter((other) => other.team_id !== team.team_id);
   const uniform = others.length > 0 && others.every(
     (other) => missing.every((key) => (other.inputs ?? {})[key] !== true),
@@ -197,7 +197,7 @@ export function analyseTeam(team, league) {
       ? "Every declared input is present."
       : cov.uniform
         ? `Missing: ${cov.missing.join(", ")}. Every other team is missing the same ones, `
-          + `so this is a gap in the capture rather than anything about this club.`
+          + `so this is a gap in the capture rather than anything about this pro team.`
         : `Missing: ${cov.missing.join(", ")}.`,
   });
 

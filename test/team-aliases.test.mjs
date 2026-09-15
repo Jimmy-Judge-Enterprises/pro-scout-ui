@@ -67,8 +67,8 @@ for (const [code, entry] of Object.entries(vendored.aliases)) {
   check(`vendored ${code} resolves to a real team`, ids.has(entry.canonical));
 }
 for (const [alias, canonical] of Object.entries(identityAliases())) {
-  check(`club code ${alias} points at a team the manifest has`, ids.has(canonical), `-> ${canonical}`);
-  check(`club code ${alias} is matched as a token`, teamTokenCode(alias) === canonical);
+  check(`pro team code ${alias} points at a team the manifest has`, ids.has(canonical), `-> ${canonical}`);
+  check(`pro team code ${alias} is matched as a token`, teamTokenCode(alias) === canonical);
 }
 
 // --- nicknames must never reach the token matcher ---------------------------

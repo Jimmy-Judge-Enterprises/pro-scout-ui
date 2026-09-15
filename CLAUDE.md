@@ -17,13 +17,13 @@ either as editable is the most expensive mistake available.
   pro-scout and rebuild; a hand-edit here is overwritten on the next sync and
   hides the real defect in the meantime.
 - **`contracts/` are vendored copies.** Gameplan's provider contracts arrive
-  through pro-scout; `contracts/pro-scout/team-aliases.json` is pro-scout's club
+  through pro-scout; `contracts/pro-scout/team-aliases.json` is pro-scout's pro team
   map; `src/vendor/jsonschema.js` is upstream's validator.
   `scripts/verify-contracts.mjs` recomputes a SHA-256 per file against
   `contracts/VENDORED.json` and fails on any drift. To change one, change it
   upstream, re-copy, and refresh the hashes — never edit in place.
 
-The chain is **gameplan → pro-scout → pro-scout-ui**. A club code, a fact
+The chain is **gameplan → pro-scout → pro-scout-ui**. A pro team code, a fact
 domain, or a required field originates at the left and is copied rightward.
 
 ## Commands
@@ -75,7 +75,7 @@ differently, and merging them reintroduces a bug the tests pin:
   a token-matched nickname eats the player. The test fails if one ever becomes
   token-matchable.
 
-Which club codes collide with a real given name is **read from the manifest at
+Which pro team codes collide with a real given name is **read from the manifest at
 load**, never listed — so a future signing fixes itself. `KC Concepcion` is why.
 
 The module declares only the relocations and provider spellings this repo owns
@@ -94,7 +94,7 @@ Breaking any of these silently produces output that looks fine and is wrong.
   player), `document` (a file header — describes the document, not the player)
   or `analyst` (typed here). **Only `observed` values may become facts.** A team
   from a header never becomes an identity fact: rosters go stale.
-- **A normalisation must not destroy what it normalised.** A club code keeps the
+- **A normalisation must not destroy what it normalised.** A pro team code keeps the
   source's spelling beside it (`team_hint_as_written`) — a relocation spelling is
   what tells a downstream search the source is stale.
 - **Absence is reported as absence.** Never echo a derived value into a field the
@@ -103,8 +103,8 @@ Breaking any of these silently produces output that looks fine and is wrong.
   remedy: `gsis_invalid`, `source_unregistered`, `observed_at_unknown`,
   `observed_at_not_datetime`, `facts_invalid`, `observation_invalid`,
   `batch_spans_sources`, `manifest_invalid`.
-- **A run of name tokens breaks on a club code, except when it doesn't.** An
-  ordinary word or a colliding club code joins a name run only when a hard name
+- **A run of name tokens breaks on a pro team code, except when it doesn't.** An
+  ordinary word or a colliding pro team code joins a name run only when a hard name
   token follows it (`SOFT_STOP` in `intake.js`). Adding a plain stopword drops
   real players — "Will Kacmarek" is why.
 

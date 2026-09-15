@@ -62,13 +62,13 @@ assert.equal(filterByPresence([{ gsis_id: "x" }], "held").length, 1);
 
 // --- a team change is shown, not hidden --------------------------------------------------
 
-// The manifest used to withhold any player whose captured club differed from his
+// The manifest used to withhold any player whose captured pro team differed from his
 // current one, which hid exactly the players who had moved.
 const movers = held.filter((p) => p.team_last_played && p.team_last_played !== p.team_id);
 assert.ok(movers.length > 0, "no mover in the manifest; the case the table renders is unexercised");
 for (const mover of movers) {
-  assert.ok(mover.team_id, `${mover.name} has no current club to show`);
-  assert.ok(mover.last_played_season, `${mover.name} has no season for his previous club`);
+  assert.ok(mover.team_id, `${mover.name} has no current pro team to show`);
+  assert.ok(mover.last_played_season, `${mover.name} has no season for his previous pro team`);
 }
 assert.deepEqual(manifest.withheld, [], "a team change must not withhold a player");
 
@@ -101,8 +101,8 @@ assert.deepEqual(names, [...names].sort((a, b) => a.localeCompare(b)),
 {
   const mover = movers[0];
   const drawn = playerRow(mover);
-  assert.equal(drawn.team, mover.team_id, "the team column must show the current club");
-  assert.equal(drawn.moved, true, "a player who changed clubs is not flagged");
+  assert.equal(drawn.team, mover.team_id, "the team column must show the current pro team");
+  assert.equal(drawn.moved, true, "a player who changed pro teams is not flagged");
   assert.match(drawn.lastPlayed, new RegExp(String(mover.last_played_season)));
   assert.match(drawn.lastPlayed, new RegExp(mover.team_last_played));
 
