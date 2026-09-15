@@ -82,7 +82,7 @@ No dependencies and no test framework, the same way pro-scout runs its own:
 
 ```sh
 node scripts/check-public-boundary.mjs  # no owner, franchise or league data is tracked
-node test/public-boundary.test.mjs      # and that check can actually fail
+node test/public-boundary.test.mjs      # and that check can fail, excludes nothing idly, skips nothing silently
 node scripts/verify-contracts.mjs       # vendored contracts are byte-identical
 node test/contract.test.mjs             # the boundary rules built on them still hold
 node test/team-aliases.test.mjs         # aliases point at teams the manifest carries

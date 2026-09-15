@@ -17,7 +17,8 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { scanContent, scanRepository } from "../scripts/check-public-boundary.mjs";
+import { execFileSync } from "node:child_process";
+import { scanContent, scanRepository, SELF } from "../scripts/check-public-boundary.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -117,7 +118,73 @@ const tracked = scanRepository([], () => "");
 check("an empty file list finds nothing, which is why the count below matters",
   tracked.length === 0);
 
+// --- the exclusion list, and whether its entries earn their place --------------------------------
+
+// NECESSITY, not membership. An exclusion is a hole: whatever is later written
+// into an excluded file is exempt from this check permanently, and the files
+// excluded here are by construction the ones that know what a leak looks like.
+// An unneeded entry behaves identically to a needed one, so the only way to
+// tell them apart is to scan the file unexcluded and see whether anything is
+// actually there. This is the same question pro-scout#39 got wrong in the
+// other direction -- it excluded a file that named no patterns at all.
+for (const relative of SELF) {
+  const content = readFileSync(join(root, relative), "utf8");
+  check(`the exclusion for ${relative} earns its place`,
+    scanContent(relative, content).length > 0,
+    `${relative} is excluded from the scan, but scanning it finds nothing --`
+    + " the exclusion is unnecessary and exempts every future edit to that file");
+}
+
+// --- a source file must never go invisible to the scanner ----------------------------------------
+
+// scanRepository skips any file containing a NUL byte as "genuinely binary".
+// That is right for a PNG and catastrophic for a source file: one stray NUL and
+// the file stops being scanned, with no error and no finding.
+//
+// This is not hypothetical. check-public-boundary.mjs itself carried a literal
+// NUL on the line that performs this very skip -- written where the escape "\0"
+// was meant -- which made it binary to grep, unreviewable in a GitHub diff, and
+// skippable by its own rule. It survived only because SELF happened to cover it.
+const SOURCE_EXTENSION = /\.(mjs|js|json|md|html|css|ya?ml|txt)$/;
+const trackedPaths = execFileSync("git", ["ls-files", "-z"], { cwd: root, encoding: "utf8" })
+  .split("\0")
+  .filter(Boolean);
+const sourcePaths = trackedPaths.filter((relative) => SOURCE_EXTENSION.test(relative));
+
+check("there are source files to check, so the loop below is not vacuous",
+  sourcePaths.length > 0);
+
+for (const relative of sourcePaths) {
+  check(`${relative} carries no NUL byte`,
+    !readFileSync(join(root, relative)).includes(0),
+    `${relative} contains a NUL, so the boundary check skips it as binary and`
+    + " anything in it goes unscanned");
+}
+
+// --- a skip must be counted, never silent --------------------------------------------------------
+
+// The count is what turns "scanned clean" into a claim with a denominator. A
+// bare continue said nothing when a file went uninspected, so a leak inside a
+// skipped file read exactly like no leak at all.
+const binaryTally = {};
+scanRepository(["src/logo.png"], () => `PNG${String.fromCharCode(0, 0)}IHDR`, binaryTally);
+check("a skipped binary file is counted, not silently dropped",
+  binaryTally.binary === 1 && binaryTally.inspected === 0,
+  JSON.stringify(binaryTally));
+
+const selfTally = {};
+scanRepository([SELF[0]], () => "", selfTally);
+check("a self-excluded file is counted too",
+  selfTally.excluded === 1 && selfTally.inspected === 0,
+  JSON.stringify(selfTally));
+
+const realTally = {};
+scanRepository(contractFiles, (relative) => readFileSync(join(root, relative), "utf8"), realTally);
+check("the tally reports files actually inspected, not files merely listed",
+  realTally.inspected === contractFiles.length, JSON.stringify(realTally));
+
 console.log(failures === 0
-  ? `public boundary: all checks passed (${LEAKS.length} planted leaks caught)`
+  ? `public boundary: all checks passed (${LEAKS.length} planted leaks caught,`
+    + ` ${SELF.length} exclusions justified, ${sourcePaths.length} source files NUL-free)`
   : `public boundary: ${failures} check(s) failed`);
 process.exit(failures === 0 ? 0 : 1);
